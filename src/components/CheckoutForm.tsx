@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatCOP } from '@/lib/format';
 import type { EventFunction, Zone, Seat } from "@/lib/types";
+import { getZonePricing } from "@/lib/pricing";
 
 type PaymentMethod = {
   id: string;
@@ -70,13 +71,14 @@ export default function CheckoutForm({
   const event = eventFunction.event;
   const isAssigned = seats && seats.length > 0;
   const quantity = isAssigned ? seats.length : Math.max(1, customQty);
-  const unitPrice = isAssigned ? zone?.price ?? 0 : zone?.price ?? 0;
+  const zonePricing = zone ? getZonePricing(zone) : { currentPrice: 0, fullPrice: 0 };
+  const unitPrice = zonePricing.currentPrice;
   const subtotal = isAssigned
     ? seats.reduce((acc, s) => acc + unitPrice, 0)
     : unitPrice * quantity;
 
-  const serviceFee = Math.round(subtotal * 0.1);
-  const total = subtotal + serviceFee;
+  const serviceFee = 0;
+  const total = subtotal;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -429,10 +431,12 @@ export default function CheckoutForm({
               <span className="text-muted">Subtotal ({quantity} boletas):</span>
               <span className="text-white">{formatCOP(subtotal)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted">Servicio Tuboleta (10%):</span>
-              <span className="text-white">{formatCOP(serviceFee)}</span>
-            </div>
+            {serviceFee > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted">Servicio Tuboleta:</span>
+                <span className="text-white">{formatCOP(serviceFee)}</span>
+              </div>
+            )}
             <div className="flex justify-between border-t border-border pt-2 text-sm sm:text-base font-black text-white">
               <span>Total a pagar:</span>
               <span className="text-accent-2">{formatCOP(total)}</span>

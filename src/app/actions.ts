@@ -5,8 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth, requireAdmin } from "@/lib/auth-guards";
 import { redirect } from "next/navigation";
 import { generateSecureTicketCode } from "@/lib/ticket-utils";
-
-
+import { getZonePricing } from "@/lib/pricing";
 
 export async function signOut() {
   const supabase = await createClient();
@@ -49,7 +48,7 @@ export async function createOrder(formData: FormData) {
   const { data: zone } = zoneId
     ? await supabase
         .from("zones")
-        .select("id, price, capacity, sold_count, function_id")
+        .select("id, price, presale_price, presale_end_at, capacity, sold_count, function_id")
         .eq("id", zoneId)
         .single()
     : { data: null };
@@ -62,9 +61,10 @@ export async function createOrder(formData: FormData) {
   }
 
   const quantity = seatIds.length > 0 ? seatIds.length : Math.max(1, requestedQty);
-  const unitPrice = Number(zone?.price ?? 0);
+  const pricing = zone ? getZonePricing(zone) : { currentPrice: 0, fullPrice: 0 };
+  const unitPrice = pricing.currentPrice;
   const computedSubtotal = unitPrice * quantity;
-  const computedServiceFee = Math.round(computedSubtotal * 0.1);
+  const computedServiceFee = 0;
 
   if (zone && seatIds.length === 0) {
     if (zone.capacity != null && zone.sold_count + quantity > zone.capacity) {
