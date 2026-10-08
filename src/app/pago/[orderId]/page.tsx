@@ -16,26 +16,20 @@ export async function generateMetadata({
   return { title: `Pedido ${orderId.substring(0, 8).toUpperCase()}` };
 }
 
+import { createAdminClient } from "@/lib/supabase/admin";
+
 export default async function PagoResultPage({
   params,
 }: {
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`/pago/${orderId}`)}`);
-  }
+  const supabase = createAdminClient();
 
   const { data: order } = await supabase
     .from("orders")
     .select("*")
     .eq("id", orderId)
-    .eq("user_id", user.id)
     .single();
 
   if (!order) notFound();

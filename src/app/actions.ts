@@ -1082,7 +1082,7 @@ export async function resendTicketsEmailAction(orderId: string) {
       </div>
 
       <div style="text-align: center; margin-top: 24px;">
-        <a href="${appUrl}/mis-boletas"
+        <a href="${appUrl}/pago/${order.id}"
            style="display: inline-block; padding: 12px 24px; background-color: #9333ea; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
           🎟️ Ver y descargar mis boletas
         </a>

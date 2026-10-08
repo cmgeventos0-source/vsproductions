@@ -149,9 +149,9 @@ async function sendPaymentConfirmationEmail(
         <h2 style="color: #a855f7;">¡Hola ${name}!</h2>
         <p>Tu pago de <strong>$${amount.toLocaleString('es-CO')}</strong> ha sido verificado exitosamente.</p>
         <p>Tu orden <strong>${orderId}</strong> está lista para descargar tus boletas.</p>
-        <a href="${appUrl}/mis-boletas"
+        <a href="${appUrl}/pago/${orderId}"
            style="display: inline-block; padding: 12px 24px; background-color: #9333ea; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">
-          Ver mis boletas
+          Ver y descargar mis boletas
         </a>
         <p style="margin-top: 20px; color: #666; font-size: 12px;">
           Gracias por tu compra en Boletería Colombia.

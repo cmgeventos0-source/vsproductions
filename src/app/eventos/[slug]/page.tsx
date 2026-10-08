@@ -151,9 +151,6 @@ export default async function EventoDetailPage({
                       🏠 <span>{eventData.venue.address}</span>
                     </span>
                   )}
-                  <span className="flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-300 border border-amber-500/20">
-                    🏛️ Código PULEP: {eventData.pulep_code || `COL-${event.id.substring(0, 6).toUpperCase()}`}
-                  </span>
                 </div>
               )}
 
