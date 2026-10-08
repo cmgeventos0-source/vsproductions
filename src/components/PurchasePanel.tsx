@@ -59,53 +59,15 @@ export default function PurchasePanel({
   }, [activeFunction]);
 
   const [zoneId, setZoneId] = useState("");
-  const zoneLockStatus = useMemo(() => {
-    const statusMap: Record<string, { isLocked: boolean; unlockThresholdPrevZoneName?: string; prevAvail?: number }> = {};
-    const individualZones = zones.filter((z) => z.sale_type !== "full_zone");
-
-    for (let i = 0; i < individualZones.length; i++) {
-      const current = individualZones[i];
-      if (current.is_locked) {
-        statusMap[current.id] = { isLocked: true };
-      } else if (i === 0) {
-        statusMap[current.id] = { isLocked: false };
-      } else {
-        const prev = individualZones[i - 1];
-        const prevAvail = (prev.capacity ?? Infinity) - prev.sold_count;
-        const isLocked = prevAvail > 5;
-        statusMap[current.id] = {
-          isLocked,
-          unlockThresholdPrevZoneName: prev.name,
-          prevAvail,
-        };
-      }
-    }
-
-    zones.forEach((z) => {
-      if (z.is_locked) {
-        statusMap[z.id] = { isLocked: true };
-      } else if (z.sale_type === "full_zone" && !statusMap[z.id]) {
-        statusMap[z.id] = { isLocked: false };
-      }
-    });
-
-    return statusMap;
-  }, [zones]);
-
-  const firstUnlockedZone = useMemo(() => zones.find((z) => !z.is_locked && !zoneLockStatus[z.id]?.isLocked), [zones, zoneLockStatus]);
+  const firstUnlockedZone = useMemo(() => zones.find((z) => !z.is_locked), [zones]);
   const activeZone = useMemo(
-    () => zones.find((z) => z.id === zoneId && !z.is_locked && !zoneLockStatus[z.id]?.isLocked) ?? firstUnlockedZone ?? zones[0],
-    [zones, zoneId, zoneLockStatus, firstUnlockedZone]
+    () => zones.find((z) => z.id === zoneId && !z.is_locked) ?? firstUnlockedZone ?? zones[0],
+    [zones, zoneId, firstUnlockedZone]
   );
 
   function handleSelectZone(z: Zone) {
     if (z.is_locked) {
       alert(`🔒 La zona "${z.name}" se encuentra bloqueada por el organizador y no se puede seleccionar actualmente.`);
-      return;
-    }
-    const lockInfo = zoneLockStatus[z.id];
-    if (lockInfo?.isLocked) {
-      alert(`🔒 ${z.name} está bloqueado temporalmente.\nSe habilitará automáticamente cuando queden 5 o menos boletas disponibles en ${lockInfo.unlockThresholdPrevZoneName}.`);
       return;
     }
     setZoneId(z.id);
@@ -305,8 +267,7 @@ export default function PurchasePanel({
                         const cy = count > 0 ? sumY / count : 0;
                         const zoneWidth = maxPX - minPX;
                         const pricing = getZonePricing(z);
-                        const lockInfo = zoneLockStatus[z.id];
-                        const isLocked = Boolean(lockInfo?.isLocked);
+                        const isLocked = Boolean(z.is_locked);
 
                         return (
                           <g key={z.id} className="group cursor-pointer" onClick={() => handleSelectZone(z)}>
@@ -383,8 +344,7 @@ export default function PurchasePanel({
                   const pricing = getZonePricing(z);
                   const isActive = activeZone?.id === z.id;
                   const avail = (z.capacity ?? Infinity) - z.sold_count;
-                  const lockInfo = zoneLockStatus[z.id];
-                  const isLocked = Boolean(z.is_locked || lockInfo?.isLocked);
+                  const isLocked = Boolean(z.is_locked);
                   return (
                     <button
                       key={z.id}
@@ -408,10 +368,8 @@ export default function PurchasePanel({
                           )}
                         </div>
                         <p className="text-muted truncate">
-                          {z.is_locked ? (
+                          {isLocked ? (
                             <span className="text-amber-400 font-semibold">🔒 Bloqueada por organizador</span>
-                          ) : isLocked ? (
-                            <span className="text-amber-400 font-semibold">🔒 Habilita al quedar ≤5 en {lockInfo?.unlockThresholdPrevZoneName}</span>
                           ) : z.sale_type === "full_zone" ? (
                             <span className="text-cyan-400 font-semibold">{z.capacity ?? 1} entradas incl.</span>
                           ) : avail <= 0 ? (
@@ -590,8 +548,7 @@ export default function PurchasePanel({
             <div className="p-2 space-y-1.5">
               {zones.map((z: Zone) => {
                 const available = (z.capacity ?? Infinity) - z.sold_count;
-                const lockInfo = zoneLockStatus[z.id];
-                const isLocked = Boolean(lockInfo?.isLocked);
+                const isLocked = Boolean(z.is_locked);
                 const disabled = available <= 0 || isLocked;
                 const pricing = getZonePricing(z);
                 const isActive = activeZone?.id === z.id;
@@ -624,7 +581,7 @@ export default function PurchasePanel({
                           )}
                         </div>
                         <p className="text-xs text-muted truncate mt-0.5">
-                          {z.is_locked ? <span className="text-amber-400 font-semibold">🔒 Bloqueada por organizador</span> : isLocked ? <span className="text-amber-400 font-semibold">🔒 Habilita al quedar ≤5 en {lockInfo?.unlockThresholdPrevZoneName}</span> : z.sale_type === "full_zone"
+                          {isLocked ? <span className="text-amber-400 font-semibold">🔒 Bloqueada por organizador</span> : z.sale_type === "full_zone"
                             ? <span className="text-cyan-400 font-semibold">{z.capacity ?? 1} entradas incl.</span>
                             : disabled ? "Agotado" : `${available.toLocaleString("es-CO")} dispon.`
                           }
