@@ -19,8 +19,10 @@ export default async function Header() {
         .maybeSingle();
       isAdmin = profile?.role === "admin";
     }
-  } catch (err) {
-    console.error("Error loading header profile:", err);
+  } catch (err: any) {
+    if (err?.digest === "DYNAMIC_SERVER_USAGE" || err?.message?.includes("Dynamic server usage")) {
+      throw err;
+    }
   }
 
   return (

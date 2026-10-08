@@ -1,6 +1,8 @@
 import { ShoppingCartComponent } from "@/components/ShoppingCartComponent";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Carrito de Compras | Boletería.CO",
   description: "Revisa y gestiona las boletas en tu carrito antes de completar la compra.",
