@@ -1,14 +1,22 @@
 /**
- * emailService.ts - Servicio de envio de correos con Resend
+ * emailService.ts - Servicio de envío de correos con Resend
  *
- * Integracion con Resend (https://resend.com)
- * Plan gratuito: 100 USD de credito = ~3500 correos
- * No requiere tarjeta para crear cuenta
+ * Integración con Resend (https://resend.com)
+ * Instanciación perezosa (lazy) para evitar errores en `next build` si falta la API Key.
  */
 
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || apiKey === 'your_resend_api_key_here') return null;
+  try {
+    return new Resend(apiKey);
+  } catch (err) {
+    console.warn('[EmailService] Error instantiating Resend:', err);
+    return null;
+  }
+}
 
 const FROM_EMAIL = process.env.RESEND_VERIFIED_SENDER || 'noreply@tudominio.com';
 const FROM_NAME = process.env.RESEND_VERIFIED_SENDER_NAME || 'Boletas';
@@ -30,8 +38,9 @@ export interface SendEmailWithAttachmentOptions extends SendEmailOptions {
 
 export class EmailService {
   static async sendEmail({ to, subject, html, text }: SendEmailOptions) {
-    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'your_resend_api_key_here') {
-      console.log('[DEV] Email to ' + to);
+    const resend = getResendClient();
+    if (!resend) {
+      console.log('[DEV] Mock email sent to ' + to);
       return { success: true, id: 'dev-mock-' + Date.now() };
     }
     try {
@@ -48,8 +57,9 @@ export class EmailService {
   }
 
   static async sendEmailWithAttachment({ to, subject, html, text, attachment }: SendEmailWithAttachmentOptions) {
-    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'your_resend_api_key_here') {
-      console.log('[DEV] Email with attachment to ' + to);
+    const resend = getResendClient();
+    if (!resend) {
+      console.log('[DEV] Mock email with attachment sent to ' + to);
       return { success: true, id: 'dev-mock-' + Date.now() };
     }
     try {
