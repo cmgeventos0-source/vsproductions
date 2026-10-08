@@ -156,8 +156,9 @@ export async function createOrder(formData: FormData) {
   const finalSubtotal = Math.max(0, computedSubtotal - discountAmount);
   const finalTotal = finalSubtotal + computedServiceFee;
 
+  const adminClient = createAdminClient();
   const orderId = crypto.randomUUID();
-  const { error: orderError } = await supabase.from("orders").insert({
+  const { error: orderError } = await adminClient.from("orders").insert({
     id: orderId,
     user_id: user?.id || null,
     email,
@@ -183,15 +184,17 @@ export async function createOrder(formData: FormData) {
       quantity: 1,
       unit_price: unitPrice
     }));
-    await supabase.from("order_items").insert(seatItems);
+    const { error: itemErr } = await adminClient.from("order_items").insert(seatItems);
+    if (itemErr) console.error("Error inserting seat order_items:", itemErr);
   } else {
-    await supabase.from("order_items").insert({
+    const { error: itemErr } = await adminClient.from("order_items").insert({
       order_id: orderId,
       zone_id: zoneId,
       function_id: functionId,
       quantity: quantity,
       unit_price: unitPrice
     });
+    if (itemErr) console.error("Error inserting general order_items:", itemErr);
   }
 
   return { success: true, orderId };
@@ -199,7 +202,7 @@ export async function createOrder(formData: FormData) {
 
 export async function approveOrderAction(orderId: string) {
   await requireAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { error } = await supabase.from("orders")
     .update({ status: "paid" })
@@ -239,6 +242,14 @@ export async function approveOrderAction(orderId: string) {
   }
 
   await generateTicketsForOrder(orderId);
+
+  // Enviar correo de confirmación automáticamente
+  try {
+    await resendTicketsEmailAction(orderId);
+  } catch (e) {
+    console.warn("Could not send approval email:", e);
+  }
+
   return { success: true };
 }
 
@@ -521,10 +532,10 @@ export async function getAppConfig(key: string) {
 }
 
 export async function generateTicketsForOrder(orderId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data: items } = await supabase.from("order_items").select("*").eq("order_id", orderId);
-  if (!items) return;
+  if (!items || items.length === 0) return;
 
   const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single();
 
@@ -539,7 +550,7 @@ export async function generateTicketsForOrder(orderId: string) {
 
     for (let i = 0; i < countToCreate; i++) {
       const code = generateSecureTicketCode();
-      await supabase.from("tickets").insert({
+      const { error: ticketError } = await supabase.from("tickets").insert({
         order_id: orderId,
         function_id: item.function_id,
         zone_id: item.zone_id,
@@ -549,6 +560,9 @@ export async function generateTicketsForOrder(orderId: string) {
         qr_data: code,
         status: 'active'
       });
+      if (ticketError) {
+        console.error("[generateTicketsForOrder] Error creating ticket:", ticketError);
+      }
     }
   }
 }
