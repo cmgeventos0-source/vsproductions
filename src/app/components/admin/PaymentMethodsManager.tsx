@@ -67,6 +67,13 @@ export function PaymentMethodsManager() {
         icon: formData.get('icon'),
         requires_verification: formData.get('requires_verification') === 'on',
         enabled: formData.get('enabled') === 'on',
+        verification_config: {
+          ...(editing.verification_config || {}),
+          account_number: formData.get('account_number') || '',
+          account_type: formData.get('account_type') || '',
+          account_owner: formData.get('account_owner') || '',
+          instructions: formData.get('instructions') || '',
+        }
       }
 
       if (editing.id) {
@@ -142,7 +149,9 @@ export function PaymentMethodsManager() {
                       </div>
                       <div>
                         <p className="font-bold text-white">{method.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{method.id}</p>
+                        <p className="text-[10px] text-purple-300 font-mono">
+                          {method.verification_config?.account_number ? `💳 ${method.verification_config.account_number}` : method.id}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -191,8 +200,8 @@ export function PaymentMethodsManager() {
       </div>
 
       {showModal && editing && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#0E0F1F] border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#0E0F1F] border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 my-8">
             <h2 className="text-lg font-bold text-white">
               {editing.id ? 'Editar Método' : 'Nuevo Método'}
             </h2>
@@ -219,6 +228,51 @@ export function PaymentMethodsManager() {
                   className="input"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-purple-300 uppercase tracking-wider mb-1">💳 Número de Cuenta / Teléfono</label>
+                <input
+                  type="text"
+                  name="account_number"
+                  defaultValue={editing.verification_config?.account_number || ''}
+                  placeholder="Ej: 3109876543 o 123-456789-01"
+                  className="input border-purple-500/30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">🏦 Tipo de Cuenta / Banco</label>
+                <input
+                  type="text"
+                  name="account_type"
+                  defaultValue={editing.verification_config?.account_type || ''}
+                  placeholder="Ej: Ahorros Bancolombia / Nequi / Daviplata"
+                  className="input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">👤 Titular de la Cuenta (Nombre / Cédula)</label>
+                <input
+                  type="text"
+                  name="account_owner"
+                  defaultValue={editing.verification_config?.account_owner || ''}
+                  placeholder="Ej: VS PRODUCTIONS S.A.S. - NIT 901234567"
+                  className="input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">📝 Instrucciones Adicionales</label>
+                <textarea
+                  name="instructions"
+                  rows={2}
+                  defaultValue={editing.verification_config?.instructions || ''}
+                  placeholder="Ej: Transfiere el valor exacto y adjunta el comprobante a continuación."
+                  className="input py-2"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Icono</label>
                 <select name="icon" defaultValue={editing.icon} className="input">

@@ -299,45 +299,61 @@ export default function CheckoutForm({
             )}
 
             {/* Instrucciones según el método */}
-            {selectedMethod && (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-surface-2 p-4 sm:p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-bold text-purple-300">💡 Datos para Transferir</span>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard("3109876543")}
-                    className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg hover:bg-purple-500/30 transition-colors"
-                  >
-                    {copiedNumber ? "✓ ¡Copiado!" : "📋 Copiar Número"}
-                  </button>
-                </div>
-                <div className="text-xs space-y-1 text-muted">
-                  <p>
-                    • Transfiere el valor exacto de <strong className="text-white text-sm">{formatCOP(total)}</strong> a:
-                  </p>
-                  <p className="font-mono text-sm sm:text-base font-bold text-emerald-400 py-1 flex items-center gap-2">
-                    📱 310 987 6543 <span className="text-xs font-normal text-muted">(Nequi / Daviplata / Bancolombia)</span>
-                  </p>
-                  <p>• Adjunta la captura o comprobante de tu pago a continuación:</p>
-                </div>
+            {selectedMethod && (() => {
+              const currentMethodObj = paymentMethods.find(m => m.id === selectedMethod);
+              const config = currentMethodObj?.verification_config || {};
+              const accountNumber = config.account_number || "310 987 6543";
+              const accountType = config.account_type || currentMethodObj?.name || "Cuenta";
+              const accountOwner = config.account_owner || "";
+              const customInstructions = config.instructions;
 
-                {paymentMethods.find(m => m.id === selectedMethod)?.requires_verification && (
-                  <div className="pt-2">
-                    <label className="label text-xs font-semibold">Comprobante de Pago (Imagen o PDF)</label>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      required
-                      onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
-                      className="input w-full cursor-pointer text-xs py-2"
-                    />
-                    {receiptFile && (
-                      <p className="text-xs text-green-400 mt-2">✓ Comprobante listo: {receiptFile.name}</p>
+              return (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-surface-2 p-4 sm:p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs sm:text-sm font-bold text-purple-300">💡 Datos para Transferir ({currentMethodObj?.name})</span>
+                    {accountNumber && (
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(accountNumber.replace(/\s+/g, ""))}
+                        className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg hover:bg-purple-500/30 transition-colors"
+                      >
+                        {copiedNumber ? "✓ ¡Copiado!" : "📋 Copiar Número"}
+                      </button>
                     )}
                   </div>
-                )}
-              </div>
-            )}
+                  <div className="text-xs space-y-1.5 text-muted">
+                    <p>
+                      • Transfiere el valor exacto de <strong className="text-white text-sm">{formatCOP(total)}</strong> a:
+                    </p>
+                    <div className="rounded-xl bg-surface p-3 border border-white/10 space-y-1">
+                      <p className="font-mono text-sm sm:text-base font-black text-emerald-400 flex items-center gap-2">
+                        💳 {accountNumber}
+                      </p>
+                      <p className="text-xs text-white font-semibold">
+                        {accountType} {accountOwner ? `· Titular: ${accountOwner}` : ""}
+                      </p>
+                    </div>
+                    <p className="pt-1">• {customInstructions || "Adjunta la captura o comprobante de tu pago a continuación:"}</p>
+                  </div>
+
+                  {currentMethodObj?.requires_verification && (
+                    <div className="pt-2">
+                      <label className="label text-xs font-semibold">Comprobante de Pago (Imagen o PDF)</label>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        required
+                        onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+                        className="input w-full cursor-pointer text-xs py-2"
+                      />
+                      {receiptFile && (
+                        <p className="text-xs text-green-400 mt-2">✓ Comprobante listo: {receiptFile.name}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="card p-5 sm:p-6 space-y-3">
