@@ -161,51 +161,32 @@ async function handler(req: NextRequest) {
 
 export const POST = rateLimitMiddleware('payment')(handler)
 
+import { EmailService } from '@/lib/services/emailService'
+
 async function sendPaymentConfirmationEmail(
   email: string,
   name: string,
   amount: number,
   orderId: string
 ) {
-  try {
-    const rawSender = process.env.RESEND_VERIFIED_SENDER;
-    const fromEmail = !rawSender || rawSender.includes('tudominio') || rawSender.includes('boleteria')
-      ? 'onboarding@resend.dev'
-      : rawSender;
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: `Boletas <${fromEmail}>`,
-        to: email,
-        subject: '✅ Pago Confirmado - Boletas Listas',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>¡Hola ${name}!</h2>
-            <p>Tu pago de <strong>$${amount.toLocaleString('es-CO')}</strong> ha sido verificado exitosamente.</p>
-            <p>Tu orden <strong>${orderId}</strong> está lista para descargar tus boletas.</p>
-            <a href="${appUrl}/mis-boletas"
-               style="display: inline-block; padding: 10px 20px; background-color: #9333ea; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">
-              Ver mis boletas
-            </a>
-            <p style="margin-top: 20px; color: #666; font-size: 12px;">
-              Gracias por tu compra en Boletería Colombia.
-            </p>
-          </div>
-        `,
-      }),
-    })
-
-    if (!response.ok) {
-      console.error('Email send error:', await response.text())
-    }
-  } catch (error) {
-    console.error('Failed to send confirmation email:', error)
-  }
+  await EmailService.sendEmail({
+    to: email,
+    subject: '✅ Pago Confirmado - Boletas Listas',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #09090f; color: #ffffff; padding: 24px; border-radius: 12px;">
+        <h2 style="color: #a855f7;">¡Hola ${name}!</h2>
+        <p>Tu pago de <strong>$${amount.toLocaleString('es-CO')}</strong> ha sido verificado exitosamente.</p>
+        <p>Tu orden <strong>${orderId}</strong> está lista para descargar tus boletas.</p>
+        <a href="${appUrl}/mis-boletas"
+           style="display: inline-block; padding: 12px 24px; background-color: #9333ea; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">
+          Ver mis boletas
+        </a>
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">
+          Gracias por tu compra en Boletería Colombia.
+        </p>
+      </div>
+    `,
+  })
 }
 
 async function sendPaymentRejectionEmail(
@@ -213,44 +194,23 @@ async function sendPaymentRejectionEmail(
   name: string,
   notes?: string
 ) {
-  try {
-    const rawSender = process.env.RESEND_VERIFIED_SENDER;
-    const fromEmail = !rawSender || rawSender.includes('tudominio') || rawSender.includes('boleteria')
-      ? 'onboarding@resend.dev'
-      : rawSender;
-
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: `Boletas <${fromEmail}>`,
-        to: email,
-        subject: '❌ Pago Rechazado - Acción Requerida',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Hola ${name},</h2>
-            <p>Lamentablemente, tu pago no pudo ser verificado.</p>
-            ${notes ? `<p><strong>Motivo:</strong> ${notes}</p>` : ''}
-            <p>Por favor, intenta nuevamente o contacta con soporte.</p>
-            <a href="${appUrl}/payment-status"
-               style="display: inline-block; padding: 10px 20px; background-color: #dc2626; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">
-              Reintentar pago
-            </a>
-            <p style="margin-top: 20px; color: #666; font-size: 12px;">
-              Si necesitas ayuda, contacta a soporte@boleteria.com
-            </p>
-          </div>
-        `,
-      }),
-    })
-
-    if (!response.ok) {
-      console.error('Email send error:', await response.text())
-    }
-  } catch (error) {
-    console.error('Failed to send rejection email:', error)
-  }
+  await EmailService.sendEmail({
+    to: email,
+    subject: '❌ Pago Rechazado - Acción Requerida',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #09090f; color: #ffffff; padding: 24px; border-radius: 12px;">
+        <h2 style="color: #ef4444;">Hola ${name},</h2>
+        <p>Lamentablemente, tu pago no pudo ser verificado.</p>
+        ${notes ? `<p><strong>Motivo:</strong> ${notes}</p>` : ''}
+        <p>Por favor, intenta nuevamente o contacta con soporte.</p>
+        <a href="${appUrl}/payment-status"
+           style="display: inline-block; padding: 12px 24px; background-color: #dc2626; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">
+          Reintentar pago
+        </a>
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">
+          Si necesitas ayuda, contacta a soporte@boleteria.com
+        </p>
+      </div>
+    `,
+  })
 }
