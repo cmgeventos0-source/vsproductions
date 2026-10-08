@@ -5,19 +5,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { notificationService } from '@/lib/services/notificationService';
 import crypto from 'crypto';
 
 import { verifyWebhookSignature } from '@/lib/wompi';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createAdminClient();
     const body = await request.text();
     const event = JSON.parse(body || '{}');
 
@@ -210,6 +206,7 @@ export async function POST(request: NextRequest) {
  */
 async function handlePaymentFailed(reference: string, status: string) {
   try {
+    const supabase = createAdminClient();
     const { data: order } = await supabase
       .from('orders')
       .select('id, user_id, customer_name, email, customer_phone')
