@@ -23,8 +23,8 @@ interface AuditLogData {
 export async function logAudit(req: NextRequest, data: AuditLogData, userId: string) {
   try {
     const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
+      process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder"
     )
 
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
@@ -58,8 +58,8 @@ export async function getAuditLogs(
 ) {
   try {
     const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
+      process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder"
     )
 
     let query = supabase

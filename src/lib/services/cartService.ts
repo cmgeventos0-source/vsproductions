@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { ShoppingCart, CartItem, PromoCode } from '@/types/cart';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder";
+  return createClient(url, key);
+}
 
 export class CartService {
   /**
@@ -18,6 +19,7 @@ export class CartService {
       throw new Error('Se requiere userId o sessionId');
     }
 
+    const supabase = getSupabase();
     const query = userId
       ? supabase.from('shopping_carts').select('*').eq('user_id', userId)
       : supabase.from('shopping_carts').select('*').eq('session_id', sessionId);
@@ -52,7 +54,7 @@ export class CartService {
     userId?: string,
     sessionId?: string
   ): Promise<ShoppingCart> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('shopping_carts')
       .insert({
         user_id: userId || null,
@@ -87,6 +89,7 @@ export class CartService {
     cartId: string,
     item: CartItem
   ): Promise<ShoppingCart> {
+    const supabase = getSupabase();
     const { data: cartData, error: fetchError } = await supabase
       .from('shopping_carts')
       .select('items, subtotal')
@@ -149,6 +152,7 @@ export class CartService {
     quantity: number,
     seatIds?: string[]
   ): Promise<ShoppingCart> {
+    const supabase = getSupabase();
     const { data: cartData, error: fetchError } = await supabase
       .from('shopping_carts')
       .select('items')
@@ -219,7 +223,7 @@ export class CartService {
    * Vacía completamente el carrito
    */
   static async clearCart(cartId: string): Promise<ShoppingCart> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('shopping_carts')
       .update({
         items: [],
@@ -256,6 +260,7 @@ export class CartService {
     cartId: string,
     promoCode: string
   ): Promise<{ success: boolean; discountAmount: number; total: number; finalTotal: number }> {
+    const supabase = getSupabase();
     // Obtener datos del carrito
     const { data: cartData, error: cartError } = await supabase
       .from('shopping_carts')
@@ -330,6 +335,7 @@ export class CartService {
    * Remueve código promocional del carrito
    */
   static async removePromoCode(cartId: string): Promise<ShoppingCart> {
+    const supabase = getSupabase();
     const { data: cartData, error: fetchError } = await supabase
       .from('shopping_carts')
       .select('subtotal')
@@ -370,7 +376,7 @@ export class CartService {
    * Marca carrito como abandonado
    */
   static async markCartAbandoned(cartId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .from('shopping_carts')
       .update({
         abandoned_at: new Date().toISOString(),
@@ -388,7 +394,7 @@ export class CartService {
       Date.now() - hoursAgo * 60 * 60 * 1000
     ).toISOString();
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('shopping_carts')
       .select('id, user_id, session_id, items, created_at, updated_at')
       .eq('abandoned_at', null)

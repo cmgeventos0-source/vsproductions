@@ -1,17 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import { Favorite, ReferralCode } from '@/types/cart';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder";
+  return createClient(url, key);
+}
 
 export class FavoritesService {
   /**
    * Obtiene los favoritos del usuario
    */
   static async getUserFavorites(userId: string): Promise<string[]> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('favorites')
       .select('event_id')
       .eq('user_id', userId);
@@ -25,7 +26,7 @@ export class FavoritesService {
    * Añade un evento a favoritos
    */
   static async addToFavorites(userId: string, eventId: string): Promise<Favorite> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('favorites')
       .insert({
         user_id: userId,
@@ -56,7 +57,7 @@ export class FavoritesService {
     userId: string,
     eventId: string
   ): Promise<void> {
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .from('favorites')
       .delete()
       .eq('user_id', userId)
@@ -69,7 +70,7 @@ export class FavoritesService {
    * Verifica si un evento está en favoritos
    */
   static async isFavorite(userId: string, eventId: string): Promise<boolean> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('favorites')
       .select('id')
       .eq('user_id', userId)
@@ -89,7 +90,7 @@ export class FavoritesService {
    * Obtiene todos los favoritos con datos del evento
    */
   static async getUserFavoritesWithDetails(userId: string) {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('favorites')
       .select(
         `id, created_at,
@@ -115,6 +116,7 @@ export class ReferralService {
     userId: string,
     discountPercentage: number = 5
   ): Promise<ReferralCode> {
+    const supabase = getSupabase();
     // Verificar si ya existe
     const { data: existing } = await supabase
       .from('referral_codes')
@@ -169,7 +171,7 @@ export class ReferralService {
    * Obtiene el código referral del usuario
    */
   static async getUserReferralCode(userId: string): Promise<ReferralCode | null> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('referral_codes')
       .select('*')
       .eq('user_id', userId)
@@ -201,6 +203,7 @@ export class ReferralService {
     orderId: string,
     referredUserId?: string
   ): Promise<{ discount: number; referrerEarned: number }> {
+    const supabase = getSupabase();
     // Obtener referral code
     const { data: refCodeData, error: refError } = await supabase
       .from('referral_codes')
@@ -252,6 +255,7 @@ export class ReferralService {
    * Obtiene estadísticas del código referral
    */
   static async getReferralStats(userId: string) {
+    const supabase = getSupabase();
     const { data: refCode } = await supabase
       .from('referral_codes')
       .select('*')
@@ -283,7 +287,7 @@ export class ReferralService {
    * Desactiva un código referral
    */
   static async deactivateReferralCode(userId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .from('referral_codes')
       .update({ active: false })
       .eq('user_id', userId);

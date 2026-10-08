@@ -7,10 +7,11 @@ import {
   RecentSearch,
 } from '@/types/search';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder";
+  return createClient(url, key);
+}
 
 export class SearchService {
   /**
@@ -34,6 +35,7 @@ export class SearchService {
     } = filters;
 
     const offset = (page - 1) * limit;
+    const supabase = getSupabase();
     let queryBuilder = supabase
       .from('events')
       .select(
@@ -171,7 +173,7 @@ export class SearchService {
    * Obtiene ciudades populares
    */
   static async getPopularCities(): Promise<string[]> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('events')
       .select('city')
       .eq('published', true)
@@ -188,7 +190,7 @@ export class SearchService {
    * Obtiene categorías con conteo
    */
   static async getCategoriesWithCounts() {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('categories')
       .select(
         `
@@ -216,7 +218,7 @@ export class SearchService {
     userId?: string,
     sessionId?: string
   ): Promise<RecentSearch> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('recent_searches')
       .insert({
         user_id: userId || null,
@@ -243,7 +245,7 @@ export class SearchService {
    * Obtiene búsquedas recientes del usuario
    */
   static async getRecentSearches(userId: string, limit: number = 10): Promise<RecentSearch[]> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('recent_searches')
       .select('*')
       .eq('user_id', userId)
@@ -265,7 +267,7 @@ export class SearchService {
    * Obtiene o crea preferencia de ubicación del usuario
    */
   static async getUserLocationPreference(userId: string): Promise<LocationPreference | null> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('user_location_preferences')
       .select('*')
       .eq('user_id', userId)
@@ -298,6 +300,7 @@ export class SearchService {
     searchRadius: number = 50,
     preferredCities: string[] = []
   ): Promise<LocationPreference> {
+    const supabase = getSupabase();
     const { data: existing } = await supabase
       .from('user_location_preferences')
       .select('id')
@@ -378,7 +381,7 @@ export class SearchService {
    * Obtiene estadísticas de búsqueda
    */
   static async getSearchStats(userId: string) {
-    const { data: searches, error } = await supabase
+    const { data: searches, error } = await getSupabase()
       .from('recent_searches')
       .select('*')
       .eq('user_id', userId)
