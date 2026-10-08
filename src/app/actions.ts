@@ -6,6 +6,7 @@ import { requireAuth, requireAdmin } from "@/lib/auth-guards";
 import { redirect } from "next/navigation";
 import { generateSecureTicketCode } from "@/lib/ticket-utils";
 import { getZonePricing } from "@/lib/pricing";
+import { EmailService } from "@/lib/services/emailService";
 
 export async function signOut() {
   const supabase = await createClient();
@@ -1015,4 +1016,92 @@ export async function getTicketsByDocumentAction(query: string) {
   }
 
   return { success: true, tickets: tickets || [], orders };
+}
+
+export async function resendTicketsEmailAction(orderId: string) {
+  await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: order, error: orderErr } = await supabase
+    .from("orders")
+    .select("id, email, customer_name, total, status, created_at")
+    .eq("id", orderId)
+    .single();
+
+  if (orderErr || !order) {
+    return { success: false, error: "Pedido no encontrado" };
+  }
+
+  if (!order.email) {
+    return { success: false, error: "El pedido no tiene correo electrónico asociado" };
+  }
+
+  const { data: tickets } = await supabase
+    .from("tickets")
+    .select(`
+      code,
+      status,
+      zone:zones(name),
+      seat:seats(row_name, number),
+      function:event_functions(
+        name,
+        starts_at,
+        event:events(name)
+      )
+    `)
+    .eq("order_id", orderId);
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://vsproductions.vercel.app";
+
+  let ticketsHtml = "";
+  if (tickets && tickets.length > 0) {
+    ticketsHtml = tickets
+      .map((t: any) => {
+        const eventName = t.function?.event?.name || "Evento";
+        const functionName = t.function?.name || "";
+        const zoneName = t.zone?.name || "General";
+        const seatStr = t.seat ? `Fila ${t.seat.row_name} · Silla ${t.seat.number}` : "";
+        return `
+          <div style="background:#181825; border:1px solid #333; border-radius:8px; padding:12px; margin-bottom:10px; color:#ffffff;">
+            <p style="margin:0; font-weight:bold; font-size:14px; color:#a855f7;">${eventName} - ${functionName}</p>
+            <p style="margin:4px 0 0 0; font-size:12px; color:#cccccc;">Zona: ${zoneName} ${seatStr ? `| ${seatStr}` : ""}</p>
+            <p style="margin:6px 0 0 0; font-family:monospace; font-weight:bold; font-size:14px; color:#22c55e;">Código: ${t.code}</p>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #09090f; color: #ffffff; padding: 24px; border-radius: 12px;">
+      <h2 style="color: #a855f7; margin-top: 0;">¡Hola ${order.customer_name || 'Comprador'}!</h2>
+      <p style="color: #cccccc;">Te reenviamos la información de tus entradas para la orden <strong>${order.id.substring(0, 8).toUpperCase()}</strong>.</p>
+      
+      <div style="margin: 20px 0;">
+        ${ticketsHtml || "<p style='color: #888;'>Boletas disponibles digitalmente.</p>"}
+      </div>
+
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${appUrl}/mis-boletas"
+           style="display: inline-block; padding: 12px 24px; background-color: #9333ea; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+          🎟️ Ver y descargar mis boletas
+        </a>
+      </div>
+      <p style="margin-top: 24px; color: #666666; font-size: 12px; text-align: center;">
+        Boletería Digital - Conserve este correo para la entrada al evento.
+      </p>
+    </div>
+  `;
+
+  const emailRes = await EmailService.sendEmail({
+    to: order.email,
+    subject: `🎟️ Tus boletas para ${order.id.substring(0, 8).toUpperCase()}`,
+    html,
+  });
+
+  if (!emailRes.success) {
+    return { success: false, error: emailRes.error || "No se pudo enviar el correo" };
+  }
+
+  return { success: true, message: `Boletas reenviadas con éxito a ${order.email}` };
 }

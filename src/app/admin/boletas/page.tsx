@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from '@/lib/supabase/client'
 import { formatCOP, formatDateTime } from "@/lib/format";
-import { regenerateTicketsAction } from "../../actions";
+import { regenerateTicketsAction, resendTicketsEmailAction } from "../../actions";
 import type { Order, Ticket, Event, EventFunction, Zone } from "@/lib/types";
 import TicketQR from "../../../components/TicketQR";
 import QRCode from "qrcode";
@@ -20,6 +20,7 @@ export default function AdminBoletasPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -128,6 +129,19 @@ export default function AdminBoletasPage() {
     setToast(res.message);
     setTimeout(() => setToast(null), 3000);
     if (res.success) loadOrders();
+  }
+
+  async function handleResendEmail(orderId: string) {
+    setSendingEmailId(orderId);
+    try {
+      const res = await resendTicketsEmailAction(orderId);
+      setToast(res.success ? (res.message || "Boletas reenviadas por correo") : `❌ Error: ${res.error}`);
+    } catch (err: any) {
+      setToast(`❌ Error al enviar: ${err.message || String(err)}`);
+    } finally {
+      setSendingEmailId(null);
+      setTimeout(() => setToast(null), 4000);
+    }
   }
 
   const filtered = searchQuery
@@ -309,13 +323,22 @@ export default function AdminBoletasPage() {
                 </a>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
                   className="btn-outline flex-1 text-[10px] !py-1.5"
                 >
                   {expandedId === order.id ? "Ocultar" : `${order.tickets.length} boleta(s)`}
                 </button>
+                {order.email && (
+                  <button
+                    onClick={() => handleResendEmail(order.id)}
+                    disabled={sendingEmailId === order.id}
+                    className="btn-outline text-[10px] !py-1.5 !px-3 flex items-center gap-1 border-purple-500/40 text-purple-300 hover:bg-purple-600/20 disabled:opacity-50"
+                  >
+                    ✉️ {sendingEmailId === order.id ? "Enviando..." : "Reenviar Correo"}
+                  </button>
+                )}
                 {order.status === "paid" && order.tickets.length === 0 && (
                   <button
                     onClick={() => handleRegenerate(order.id)}
