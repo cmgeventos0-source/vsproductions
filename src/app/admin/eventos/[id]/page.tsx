@@ -122,6 +122,21 @@ export default function EditEventPage({
     router.push("/admin");
   };
 
+function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefined): string {
+  if (!dateStrOrObj) return "";
+  const d = new Date(dateStrOrObj);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toIsoStringFromInput(inputVal: string | null | undefined): string | null {
+  if (!inputVal || !inputVal.trim()) return null;
+  const d = new Date(inputVal);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
   // Add a new function
   const handleAddFunction = async () => {
     if (!event) return;
@@ -135,10 +150,10 @@ export default function EditEventPage({
     const { data, error } = await supabase.from("event_functions").insert({
       event_id: id,
       name: newFunction.name || null,
-      starts_at: newFunction.starts_at || null,
-      doors_open_at: newFunction.doors_open_at || null,
-      sales_start_at: newFunction.sales_start_at || null,
-      sales_end_at: newFunction.sales_end_at || null,
+      starts_at: toIsoStringFromInput(newFunction.starts_at),
+      doors_open_at: toIsoStringFromInput(newFunction.doors_open_at),
+      sales_start_at: toIsoStringFromInput(newFunction.sales_start_at),
+      sales_end_at: toIsoStringFromInput(newFunction.sales_end_at),
       is_active: true,
     }).select().single();
 
@@ -175,10 +190,10 @@ export default function EditEventPage({
   const openEditModal = (func: EventFunction) => {
     setEditingFunctionId(func.id);
     setEditName(func.name ?? "");
-    setEditStartsAt(func.starts_at ?? "");
-    setEditDoorsOpenAt(func.doors_open_at ?? "");
-    setEditSalesStartAt(func.sales_start_at ?? "");
-    setEditSalesEndAt(func.sales_end_at ?? "");
+    setEditStartsAt(toLocalDatetimeInputString(func.starts_at));
+    setEditDoorsOpenAt(toLocalDatetimeInputString(func.doors_open_at));
+    setEditSalesStartAt(toLocalDatetimeInputString(func.sales_start_at));
+    setEditSalesEndAt(toLocalDatetimeInputString(func.sales_end_at));
   };
 
   // Save edited function
@@ -193,10 +208,10 @@ export default function EditEventPage({
 
     const { error } = await supabase.from("event_functions").update({
       name: editName || null,
-      starts_at: editStartsAt || null,
-      doors_open_at: editDoorsOpenAt || null,
-      sales_start_at: editSalesStartAt || null,
-      sales_end_at: editSalesEndAt || null,
+      starts_at: toIsoStringFromInput(editStartsAt),
+      doors_open_at: toIsoStringFromInput(editDoorsOpenAt),
+      sales_start_at: toIsoStringFromInput(editSalesStartAt),
+      sales_end_at: toIsoStringFromInput(editSalesEndAt),
     }).eq("id", editingFunctionId);
     if (error) {
       alert("Error al actualizar función: " + error.message);

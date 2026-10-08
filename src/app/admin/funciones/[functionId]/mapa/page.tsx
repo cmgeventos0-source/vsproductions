@@ -402,12 +402,20 @@ export default function MapEditorPage() {
     }
   }
 
+function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefined): string {
+  if (!dateStrOrObj) return "";
+  const d = new Date(dateStrOrObj);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
   function openEditDetails(z: Zone) {
     setEditDetailsModal(z);
     setEditZoneName(z.name);
     setEditZonePrice(z.price);
     setEditZonePresalePrice(z.presale_price ?? null);
-    setEditZonePresaleEndAt(z.presale_end_at ? new Date(z.presale_end_at).toISOString().slice(0, 16) : "");
+    setEditZonePresaleEndAt(toLocalDatetimeInputString(z.presale_end_at));
     setEditZoneSaleType(z.sale_type ?? "individual");
     setEditZoneCapacity(z.capacity);
     setEditZoneColor(z.color);
