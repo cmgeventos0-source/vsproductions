@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from '@/lib/supabase/client'
 import { formatCOP, formatDateTime } from "@/lib/format";
-import { regenerateTicketsAction, resendTicketsEmailAction, cancelSaleAction } from "../../actions";
+import { regenerateTicketsAction, resendTicketsEmailAction, cancelSaleAction, deleteOrderAction } from "../../actions";
 import type { Order, Ticket, Event, EventFunction, Zone } from "@/lib/types";
 import TicketQR from "../../../components/TicketQR";
 import QRCode from "qrcode";
@@ -144,13 +144,13 @@ export default function AdminBoletasPage() {
     }
   }
 
-  async function handleCancelSale(orderId: string) {
-    if (!confirm("¿Estás seguro de que deseas anular esta venta? Se cancelarán las boletas y se liberarán los cupos o sillas.")) return;
+  async function handleDeleteOrder(orderId: string) {
+    if (!confirm("¿Estás seguro de que deseas ELIMINAR esta venta por completo? Se borra de la base de datos, se cancelan las boletas y se liberan cupos y sillas.")) return;
     try {
-      const res = await cancelSaleAction(orderId);
+      const res = await deleteOrderAction(orderId);
       if (res.success) {
-        setToast("✅ Venta anulada exitosamente");
-        loadOrders();
+        setToast("✅ Venta eliminada por completo");
+        setOrders((prev) => prev.filter((o) => o.id !== orderId));
       } else {
         setToast(`❌ Error: ${res.error}`);
       }
@@ -364,14 +364,12 @@ export default function AdminBoletasPage() {
                     Generar Boletas
                   </button>
                 )}
-                {order.status !== "cancelled" && (
-                  <button
-                    onClick={() => handleCancelSale(order.id)}
-                    className="btn-outline text-[10px] !py-1.5 !px-3 text-red-400 border-red-500/30 hover:bg-red-500/10"
-                  >
-                    🚫 Anular Venta
-                  </button>
-                )}
+                <button
+                  onClick={() => handleDeleteOrder(order.id)}
+                  className="btn-outline text-[10px] !py-1.5 !px-3 text-red-400 border-red-500/30 hover:bg-red-500/10"
+                >
+                  🗑️ Eliminar Venta
+                </button>
               </div>
 
               {expandedId === order.id && order.tickets.length > 0 && (

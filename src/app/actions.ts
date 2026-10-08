@@ -331,6 +331,61 @@ export async function cancelSaleAction(orderId: string) {
   return { success: true };
 }
 
+export async function deleteOrderAction(orderId: string) {
+  await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, status")
+    .eq("id", orderId)
+    .single();
+
+  if (!order) {
+    return { success: false, error: "Orden no encontrada" };
+  }
+
+  const { data: items } = await supabase
+    .from("order_items")
+    .select("zone_id, seat_id, quantity")
+    .eq("order_id", orderId);
+
+  for (const item of items ?? []) {
+    if (item.seat_id) {
+      await supabase
+        .from("seats")
+        .update({ status: "available", hold_expires_at: null })
+        .eq("id", item.seat_id);
+    }
+
+    if (order.status === "paid" && item.zone_id) {
+      const { data: zone } = await supabase
+        .from("zones")
+        .select("sold_count")
+        .eq("id", item.zone_id)
+        .single();
+
+      if (zone) {
+        await supabase
+          .from("zones")
+          .update({ sold_count: Math.max(0, Number(zone.sold_count ?? 0) - Number(item.quantity ?? 0)) })
+          .eq("id", item.zone_id);
+      }
+    }
+  }
+
+  await supabase.from("payment_verifications").delete().filter("extracted_data->>orderId", "eq", orderId);
+  await supabase.from("tickets").delete().eq("order_id", orderId);
+  await supabase.from("order_items").delete().eq("order_id", orderId);
+  const { error } = await supabase.from("orders").delete().eq("id", orderId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, message: "Venta eliminada por completo" };
+}
+
 export async function redeemTicketAction(ticketCode: string) {
   await requireAdmin();
   const supabase = await createClient();
