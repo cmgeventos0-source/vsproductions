@@ -1,0 +1,39 @@
+User-agent: *
+Allow: /
+
+# Disallow bots that waste bandwidth
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# Sitemap
+Sitemap: https://boleteria.com/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 1
+
+# Specific rules for important paths
+Allow: /eventos
+Allow: /checkout
+Allow: /mis-boletas
+Allow: /payment-status
+
+# Disallow admin and private routes
+Disallow: /admin
+Disallow: /api/
+Disallow: /validador
+Disallow: /*.json$
+Disallow: /*?*sort=
+Disallow: /checkout/*/success
+
+# Allow search engines to index checkout for SEO
+Allow: /checkout
+
+# Disallow duplicate content
+Disallow: /*?utm_
+Disallow: /*?fbclid=
