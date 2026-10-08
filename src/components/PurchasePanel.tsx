@@ -65,7 +65,9 @@ export default function PurchasePanel({
 
     for (let i = 0; i < individualZones.length; i++) {
       const current = individualZones[i];
-      if (i === 0) {
+      if (current.is_locked) {
+        statusMap[current.id] = { isLocked: true };
+      } else if (i === 0) {
         statusMap[current.id] = { isLocked: false };
       } else {
         const prev = individualZones[i - 1];
@@ -80,7 +82,9 @@ export default function PurchasePanel({
     }
 
     zones.forEach((z) => {
-      if (z.sale_type === "full_zone" && !statusMap[z.id]) {
+      if (z.is_locked) {
+        statusMap[z.id] = { isLocked: true };
+      } else if (z.sale_type === "full_zone" && !statusMap[z.id]) {
         statusMap[z.id] = { isLocked: false };
       }
     });
@@ -88,13 +92,17 @@ export default function PurchasePanel({
     return statusMap;
   }, [zones]);
 
-  const firstUnlockedZone = useMemo(() => zones.find((z) => !zoneLockStatus[z.id]?.isLocked), [zones, zoneLockStatus]);
+  const firstUnlockedZone = useMemo(() => zones.find((z) => !z.is_locked && !zoneLockStatus[z.id]?.isLocked), [zones, zoneLockStatus]);
   const activeZone = useMemo(
-    () => zones.find((z) => z.id === zoneId && !zoneLockStatus[z.id]?.isLocked) ?? firstUnlockedZone ?? zones[0],
+    () => zones.find((z) => z.id === zoneId && !z.is_locked && !zoneLockStatus[z.id]?.isLocked) ?? firstUnlockedZone ?? zones[0],
     [zones, zoneId, zoneLockStatus, firstUnlockedZone]
   );
 
   function handleSelectZone(z: Zone) {
+    if (z.is_locked) {
+      alert(`🔒 La zona "${z.name}" se encuentra bloqueada por el organizador y no se puede seleccionar actualmente.`);
+      return;
+    }
     const lockInfo = zoneLockStatus[z.id];
     if (lockInfo?.isLocked) {
       alert(`🔒 ${z.name} está bloqueado temporalmente.\nSe habilitará automáticamente cuando queden 5 o menos boletas disponibles en ${lockInfo.unlockThresholdPrevZoneName}.`);
@@ -121,7 +129,8 @@ export default function PurchasePanel({
   const rows = [...new Set(availableSeats.map((s) => s.row_name))].sort();
 
   const hasVisualMap = useMemo(() => zones.some((z) => z.map_coords), [zones]);
-  const hasAssignedSeats = event.sale_mode === "assigned";
+  const zoneHasSeats = activeZone ? activeZone.has_seats !== false : true;
+  const hasAssignedSeats = event.sale_mode === "assigned" && zoneHasSeats;
 
   const mapBoundingBox = useMemo(() => {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -375,7 +384,7 @@ export default function PurchasePanel({
                   const isActive = activeZone?.id === z.id;
                   const avail = (z.capacity ?? Infinity) - z.sold_count;
                   const lockInfo = zoneLockStatus[z.id];
-                  const isLocked = Boolean(lockInfo?.isLocked);
+                  const isLocked = Boolean(z.is_locked || lockInfo?.isLocked);
                   return (
                     <button
                       key={z.id}
@@ -392,12 +401,16 @@ export default function PurchasePanel({
                           <p className="font-bold text-white truncate">{z.name}</p>
                           {z.sale_type === "full_zone" ? (
                             <span className="rounded bg-cyan-600/90 px-1.5 py-0.5 text-[8px] font-black uppercase text-white">PALCO COMPLETO</span>
+                          ) : z.has_seats === false ? (
+                            <span className="rounded bg-emerald-600/90 px-1.5 py-0.5 text-[8px] font-black uppercase text-white">🧍 DE PIE</span>
                           ) : (
                             <span className="rounded bg-purple-600/90 px-1.5 py-0.5 text-[8px] font-black uppercase text-white">SILLAS</span>
                           )}
                         </div>
                         <p className="text-muted truncate">
-                          {isLocked ? (
+                          {z.is_locked ? (
+                            <span className="text-amber-400 font-semibold">🔒 Bloqueada por organizador</span>
+                          ) : isLocked ? (
                             <span className="text-amber-400 font-semibold">🔒 Habilita al quedar ≤5 en {lockInfo?.unlockThresholdPrevZoneName}</span>
                           ) : z.sale_type === "full_zone" ? (
                             <span className="text-cyan-400 font-semibold">{z.capacity ?? 1} entradas incl.</span>
@@ -601,6 +614,8 @@ export default function PurchasePanel({
                           <p className="font-bold text-xs sm:text-sm text-white">{z.name}</p>
                           {z.sale_type === "full_zone" ? (
                             <span className="rounded bg-cyan-600/90 px-1.5 py-0.5 text-[9px] font-black uppercase text-white tracking-wider">🎪 PALCO COMPLETO</span>
+                          ) : z.has_seats === false ? (
+                            <span className="rounded bg-emerald-600/90 px-1.5 py-0.5 text-[9px] font-black uppercase text-white tracking-wider">🧍 DE PIE / SIN SILLAS</span>
                           ) : (
                             <span className="rounded bg-purple-600/90 px-1.5 py-0.5 text-[9px] font-black uppercase text-white tracking-wider">🪑 VENTA POR SILLAS</span>
                           )}
@@ -609,7 +624,7 @@ export default function PurchasePanel({
                           )}
                         </div>
                         <p className="text-xs text-muted truncate mt-0.5">
-                          {isLocked ? <span className="text-amber-400 font-semibold">🔒 Habilita al quedar ≤5 en {lockInfo?.unlockThresholdPrevZoneName}</span> : z.sale_type === "full_zone"
+                          {z.is_locked ? <span className="text-amber-400 font-semibold">🔒 Bloqueada por organizador</span> : isLocked ? <span className="text-amber-400 font-semibold">🔒 Habilita al quedar ≤5 en {lockInfo?.unlockThresholdPrevZoneName}</span> : z.sale_type === "full_zone"
                             ? <span className="text-cyan-400 font-semibold">{z.capacity ?? 1} entradas incl.</span>
                             : disabled ? "Agotado" : `${available.toLocaleString("es-CO")} dispon.`
                           }

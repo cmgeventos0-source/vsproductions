@@ -57,6 +57,8 @@ export type Zone = {
   map_coords?: string | null;
   parent_id?: string | null;
   available?: number;
+  is_locked?: boolean;
+  has_seats?: boolean;
 };
 
 

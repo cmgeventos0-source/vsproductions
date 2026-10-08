@@ -117,6 +117,8 @@ export default function MapEditorPage() {
   const [newZoneSaleType, setNewZoneSaleType] = useState<"individual" | "full_zone">("individual");
   const [newZoneCapacity, setNewZoneCapacity] = useState<number | null>(null);
   const [newZoneColor, setNewZoneColor] = useState(PALETTE[0]);
+  const [newZoneIsLocked, setNewZoneIsLocked] = useState(false);
+  const [newZoneHasSeats, setNewZoneHasSeats] = useState(true);
 
   const [editDetailsModal, setEditDetailsModal] = useState<Zone | null>(null);
   const [editZoneName, setEditZoneName] = useState("");
@@ -126,6 +128,8 @@ export default function MapEditorPage() {
   const [editZoneSaleType, setEditZoneSaleType] = useState<"individual" | "full_zone">("individual");
   const [editZoneCapacity, setEditZoneCapacity] = useState<number | null>(null);
   const [editZoneColor, setEditZoneColor] = useState(PALETTE[0]);
+  const [editZoneIsLocked, setEditZoneIsLocked] = useState(false);
+  const [editZoneHasSeats, setEditZoneHasSeats] = useState(true);
 
   useEffect(() => {
     if (!functionId) return;
@@ -377,7 +381,9 @@ export default function MapEditorPage() {
         newZoneColor,
         newZonePresalePrice,
         presaleEndIso,
-        newZoneSaleType
+        newZoneSaleType,
+        newZoneIsLocked,
+        newZoneHasSeats
       );
       setSaving(null);
       if (res.success && res.zone) {
@@ -391,6 +397,8 @@ export default function MapEditorPage() {
         setNewZonePresaleEndAt("");
         setNewZoneCapacity(null);
         setNewZoneSaleType("individual");
+        setNewZoneIsLocked(false);
+        setNewZoneHasSeats(true);
       } else {
         alert("Error al crear zona: " + (res.error ?? "Desconocido"));
         showToast("Error: " + (res.error ?? "Desconocido"));
@@ -419,6 +427,20 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
     setEditZoneSaleType(z.sale_type ?? "individual");
     setEditZoneCapacity(z.capacity);
     setEditZoneColor(z.color);
+    setEditZoneIsLocked(z.is_locked ?? false);
+    setEditZoneHasSeats(z.has_seats ?? true);
+  }
+
+  async function handleToggleLock(z: Zone) {
+    const nextLocked = !z.is_locked;
+    setZones((prev) => prev.map((item) => (item.id === z.id ? { ...item, is_locked: nextLocked } : item)));
+    const res = await updateZoneAction(z.id, { is_locked: nextLocked });
+    if (!res.success) {
+      showToast("Error al cambiar estado de bloqueo");
+      setZones((prev) => prev.map((item) => (item.id === z.id ? { ...item, is_locked: z.is_locked } : item)));
+    } else {
+      showToast(nextLocked ? `🔒 ${z.name} bloqueada` : `🔓 ${z.name} desbloqueada`);
+    }
   }
 
   async function handleSaveEditZone() {
@@ -439,6 +461,8 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
         sale_type: editZoneSaleType,
         capacity: editZoneCapacity,
         color: editZoneColor,
+        is_locked: editZoneIsLocked,
+        has_seats: editZoneHasSeats,
       });
       setSaving(null);
       if (res.success && res.zone) {
@@ -513,7 +537,7 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
                         onSetRename={setRenameValue} onStartRename={(zz) => { setRenamingId(zz.id); setRenameValue(zz.name); }}
                         onConfirmRename={handleRename} onCancelRename={() => setRenamingId(null)}
                         onSelect={() => { cancelEdit(); setActiveZoneId(z.id); setPoints([]); setDrawing(false); setTool("select"); }}
-                        onEdit={() => startEditZone(z)} onEditDetails={() => openEditDetails(z)} onDivide={() => { setDivideModal(z); setDividePrefix(z.name); }}
+                        onEdit={() => startEditZone(z)} onEditDetails={() => openEditDetails(z)} onToggleLock={() => handleToggleLock(z)} onDivide={() => { setDivideModal(z); setDividePrefix(z.name); }}
                         onDelete={() => handleDeleteZone(z)} saving={saving} childCount={children.length} />
                       {children.map((child) => (
                         <div key={child.id} className="pl-4">
@@ -521,7 +545,7 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
                             onSetRename={setRenameValue} onStartRename={(zz) => { setRenamingId(zz.id); setRenameValue(zz.name); }}
                             onConfirmRename={handleRename} onCancelRename={() => setRenamingId(null)}
                             onSelect={() => { cancelEdit(); setActiveZoneId(child.id); setPoints([]); setDrawing(false); setTool("select"); }}
-                            onEdit={() => startEditZone(child)} onEditDetails={() => openEditDetails(child)} onDelete={() => handleDeleteZone(child)}
+                            onEdit={() => startEditZone(child)} onEditDetails={() => openEditDetails(child)} onToggleLock={() => handleToggleLock(child)} onDelete={() => handleDeleteZone(child)}
                             saving={saving} isChild />
                         </div>
                       ))}
@@ -800,6 +824,66 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
               </div>
             </div>
 
+            <div>
+              <label className="label">Sillas o Solo Personas Paradas</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setNewZoneHasSeats(true)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    newZoneHasSeats
+                      ? "border-purple-500 bg-purple-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🪑 <strong>Con Sillas Numeradas</strong>
+                  <p className="text-[10px] text-muted mt-0.5">Selección de silla/fila</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewZoneHasSeats(false)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    !newZoneHasSeats
+                      ? "border-emerald-500 bg-emerald-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🧍 <strong>De Pie / Sin Sillas</strong>
+                  <p className="text-[10px] text-muted mt-0.5">Solo personas paradas</p>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Bloqueo de Zona</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setNewZoneIsLocked(false)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    !newZoneIsLocked
+                      ? "border-emerald-500 bg-emerald-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🔓 <strong>Desbloqueada</strong>
+                  <p className="text-[10px] text-muted mt-0.5">Disponible para la venta</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewZoneIsLocked(true)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    newZoneIsLocked
+                      ? "border-amber-500 bg-amber-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🔒 <strong>Bloqueada</strong>
+                  <p className="text-[10px] text-muted mt-0.5">No disponible para público</p>
+                </button>
+              </div>
+            </div>
+
             <div><label className="label">Capacidad de Asientos / Personas</label><input type="number" min={1} className="input" value={newZoneCapacity ?? ""} onChange={(e) => setNewZoneCapacity(e.target.value ? Number(e.target.value) : null)} placeholder="Ej: 10 (asientos del palco u aforo)" /></div>
             <div><label className="label">Color en Mapa</label><div className="flex gap-2">{PALETTE.map((c) => (<button key={c} type="button" onClick={() => setNewZoneColor(c)} className="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110" style={{ backgroundColor: c, borderColor: newZoneColor === c ? "#fff" : "transparent" }} />))}</div></div>
             <div className="flex gap-2 pt-2">
@@ -814,7 +898,7 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
 
       {editDetailsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setEditDetailsModal(null)}>
-          <div className="card p-6 w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="card p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-lg">Editar Zona: {editDetailsModal.name}</h3>
             <div><label className="label">Nombre</label><input className="input" value={editZoneName} onChange={(e) => setEditZoneName(e.target.value)} placeholder="VIP, General..." /></div>
 
@@ -844,6 +928,66 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
                 >
                   🎪 <strong>Palco / Zona Completa</strong>
                   <p className="text-[10px] text-muted mt-0.5">Precio único por la zona entera</p>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Sillas o Solo Personas Paradas</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditZoneHasSeats(true)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    editZoneHasSeats
+                      ? "border-purple-500 bg-purple-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🪑 <strong>Con Sillas Numeradas</strong>
+                  <p className="text-[10px] text-muted mt-0.5">Selección de silla/fila</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditZoneHasSeats(false)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    !editZoneHasSeats
+                      ? "border-emerald-500 bg-emerald-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🧍 <strong>De Pie / Sin Sillas</strong>
+                  <p className="text-[10px] text-muted mt-0.5">Solo personas paradas</p>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Bloqueo de Zona</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditZoneIsLocked(false)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    !editZoneIsLocked
+                      ? "border-emerald-500 bg-emerald-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🔓 <strong>Desbloqueada</strong>
+                  <p className="text-[10px] text-muted mt-0.5">Disponible para la venta</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditZoneIsLocked(true)}
+                  className={`rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                    editZoneIsLocked
+                      ? "border-amber-500 bg-amber-500/20 text-white font-bold"
+                      : "border-border text-muted hover:bg-surface-2"
+                  }`}
+                >
+                  🔒 <strong>Bloqueada</strong>
+                  <p className="text-[10px] text-muted mt-0.5">No disponible para público</p>
                 </button>
               </div>
             </div>
@@ -889,13 +1033,13 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
 function ZoneRow({
   zone, active, renamingId, renameValue, onSetRename,
   onStartRename, onConfirmRename, onCancelRename,
-  onSelect, onEdit, onEditDetails, onDivide, onDelete,
+  onSelect, onEdit, onEditDetails, onToggleLock, onDivide, onDelete,
   saving, childCount, isChild,
 }: {
   zone: Zone; active: boolean; renamingId: string | null; renameValue: string;
   onSetRename: (v: string) => void; onStartRename: (z: Zone) => void;
   onConfirmRename: (z: Zone) => void; onCancelRename: () => void;
-  onSelect: () => void; onEdit: () => void; onEditDetails?: () => void; onDivide?: () => void;
+  onSelect: () => void; onEdit: () => void; onEditDetails?: () => void; onToggleLock?: () => void; onDivide?: () => void;
   onDelete: () => void; saving: string | null; childCount?: number; isChild?: boolean;
 }) {
   const isRenaming = renamingId === zone.id;
@@ -903,7 +1047,7 @@ function ZoneRow({
 
   return (
     <div className={`rounded-xl border p-3 transition-colors cursor-pointer ${active ? "border-purple-500 bg-purple-500/10" : "border-border hover:bg-surface-2"}`} onClick={onSelect}>
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
         <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: zone.color }} />
         {isRenaming ? (
           <input className="flex-1 bg-transparent border-b border-purple-500 text-sm text-white font-bold outline-none px-1" value={renameValue}
@@ -911,6 +1055,20 @@ function ZoneRow({
             onClick={(e) => e.stopPropagation()} autoFocus />
         ) : (
           <span className="font-bold text-sm text-white truncate cursor-pointer hover:text-purple-300" onClick={(e) => { e.stopPropagation(); onStartRename(zone); }} title="Renombrar">{zone.name}</span>
+        )}
+        {zone.is_locked && (
+          <span className="rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold uppercase shrink-0">
+            🔒 BLOQUEADA
+          </span>
+        )}
+        {zone.has_seats === false ? (
+          <span className="rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-bold uppercase shrink-0">
+            🧍 DE PIE
+          </span>
+        ) : (
+          <span className="rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 text-[9px] font-bold uppercase shrink-0">
+            🪑 CON SILLAS
+          </span>
         )}
         {zone.sale_type === "full_zone" && (
           <span className="rounded bg-gradient-to-r from-cyan-500 to-blue-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm shrink-0">
@@ -938,11 +1096,16 @@ function ZoneRow({
           formatCOP(zone.price)
         )}
         {" · "}
-        {zone.capacity != null ? `${zone.capacity} asientos` : "sin límite"}
+        {zone.has_seats === false ? "Solo paradas" : zone.capacity != null ? `${zone.capacity} asientos` : "sin límite"}
         {childCount != null && childCount > 0 && ` · ${childCount} subzonas`}
       </p>
-      <div className="flex gap-1 mt-2 pl-5">
+      <div className="flex gap-1 mt-2 pl-5 flex-wrap">
         <button type="button" onClick={(e) => { e.stopPropagation(); onEditDetails?.(); }} className="text-[10px] px-2 py-1 rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors">Precios / Detalle</button>
+        {onToggleLock && (
+          <button type="button" onClick={(e) => { e.stopPropagation(); onToggleLock(); }} className={`text-[10px] px-2 py-1 rounded transition-colors ${zone.is_locked ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 font-bold" : "bg-surface-2 text-muted hover:text-white"}`}>
+            {zone.is_locked ? "🔓 Desbloquear" : "🔒 Bloquear"}
+          </button>
+        )}
         {zone.map_coords && <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-[10px] px-2 py-1 rounded bg-surface-2 text-muted hover:text-white transition-colors">Mapa</button>}
         {onDivide && childCount === 0 && <button type="button" onClick={(e) => { e.stopPropagation(); onDivide(); }} className="text-[10px] px-2 py-1 rounded bg-surface-2 text-muted hover:text-white transition-colors">Dividir</button>}
         <button type="button" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-[10px] px-2 py-1 rounded bg-surface-2 text-red-400 hover:bg-red-500/10 transition-colors">Eliminar</button>

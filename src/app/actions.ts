@@ -633,10 +633,12 @@ export async function addZoneAction(
   color: string,
   presalePrice?: number | null,
   presaleEndAt?: string | null,
-  saleType?: "individual" | "full_zone"
+  saleType?: "individual" | "full_zone",
+  isLocked?: boolean,
+  hasSeats?: boolean
 ) {
   await requireAdmin();
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { count } = await supabase
     .from("zones")
@@ -651,6 +653,8 @@ export async function addZoneAction(
     color,
     sort_order: (count ?? 0) + 1,
     sale_type: saleType ?? "individual",
+    is_locked: isLocked ?? false,
+    has_seats: hasSeats ?? true,
   };
 
   if (presalePrice !== undefined && presalePrice !== null) {
@@ -666,7 +670,9 @@ export async function addZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("presale_price") || error.message?.includes("presale_end_at") || error.message?.includes("sale_type") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+    delete payload.is_locked;
+    delete payload.has_seats;
     delete payload.presale_price;
     delete payload.presale_end_at;
     delete payload.sale_type;
@@ -689,6 +695,8 @@ export async function updateZoneAction(
     sale_type?: "individual" | "full_zone";
     capacity?: number | null;
     color?: string;
+    is_locked?: boolean;
+    has_seats?: boolean;
   }
 ) {
   await requireAdmin();
@@ -702,6 +710,8 @@ export async function updateZoneAction(
   if (data.sale_type !== undefined) updateData.sale_type = data.sale_type;
   if (data.capacity !== undefined) updateData.capacity = data.capacity;
   if (data.color !== undefined) updateData.color = data.color;
+  if (data.is_locked !== undefined) updateData.is_locked = data.is_locked;
+  if (data.has_seats !== undefined) updateData.has_seats = data.has_seats;
 
   let { data: updated, error } = await supabase
     .from("zones")
@@ -710,7 +720,9 @@ export async function updateZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("presale_price") || error.message?.includes("presale_end_at") || error.message?.includes("sale_type") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+    delete updateData.is_locked;
+    delete updateData.has_seats;
     delete updateData.presale_price;
     delete updateData.presale_end_at;
     delete updateData.sale_type;
