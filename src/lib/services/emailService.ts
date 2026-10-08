@@ -18,7 +18,11 @@ function getResendClient(): Resend | null {
   }
 }
 
-const FROM_EMAIL = process.env.RESEND_VERIFIED_SENDER || 'noreply@tudominio.com';
+const rawSender = process.env.RESEND_VERIFIED_SENDER;
+const FROM_EMAIL =
+  !rawSender || rawSender.includes('tudominio.com') || rawSender.includes('boleteria.com')
+    ? 'onboarding@resend.dev'
+    : rawSender;
 const FROM_NAME = process.env.RESEND_VERIFIED_SENDER_NAME || 'Boletas';
 
 export interface SendEmailOptions {

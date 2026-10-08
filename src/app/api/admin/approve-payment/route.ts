@@ -140,7 +140,11 @@ async function sendPaymentConfirmationEmail(
   orderId: string
 ) {
   try {
-    // Using Resend or your email service
+    const rawSender = process.env.RESEND_VERIFIED_SENDER;
+    const fromEmail = !rawSender || rawSender.includes('tudominio') || rawSender.includes('boleteria')
+      ? 'onboarding@resend.dev'
+      : rawSender;
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -148,7 +152,7 @@ async function sendPaymentConfirmationEmail(
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'noreply@boleteria.com',
+        from: `Boletas <${fromEmail}>`,
         to: email,
         subject: '✅ Pago Confirmado - Boletas Listas',
         html: `
@@ -156,7 +160,7 @@ async function sendPaymentConfirmationEmail(
             <h2>¡Hola ${name}!</h2>
             <p>Tu pago de <strong>$${amount.toLocaleString('es-CO')}</strong> ha sido verificado exitosamente.</p>
             <p>Tu orden <strong>${orderId}</strong> está lista para descargar tus boletas.</p>
-            <a href="${appUrl}/payment-status"
+            <a href="${appUrl}/mis-boletas"
                style="display: inline-block; padding: 10px 20px; background-color: #9333ea; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">
               Ver mis boletas
             </a>
@@ -182,6 +186,11 @@ async function sendPaymentRejectionEmail(
   notes?: string
 ) {
   try {
+    const rawSender = process.env.RESEND_VERIFIED_SENDER;
+    const fromEmail = !rawSender || rawSender.includes('tudominio') || rawSender.includes('boleteria')
+      ? 'onboarding@resend.dev'
+      : rawSender;
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -189,7 +198,7 @@ async function sendPaymentRejectionEmail(
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'noreply@boleteria.com',
+        from: `Boletas <${fromEmail}>`,
         to: email,
         subject: '❌ Pago Rechazado - Acción Requerida',
         html: `

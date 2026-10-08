@@ -168,6 +168,11 @@ async function sendPaymentConfirmationEmail(
   orderId: string
 ) {
   try {
+    const rawSender = process.env.RESEND_VERIFIED_SENDER;
+    const fromEmail = !rawSender || rawSender.includes('tudominio') || rawSender.includes('boleteria')
+      ? 'onboarding@resend.dev'
+      : rawSender;
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -175,7 +180,7 @@ async function sendPaymentConfirmationEmail(
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'noreply@boleteria.com',
+        from: `Boletas <${fromEmail}>`,
         to: email,
         subject: '✅ Pago Confirmado - Boletas Listas',
         html: `
@@ -209,6 +214,11 @@ async function sendPaymentRejectionEmail(
   notes?: string
 ) {
   try {
+    const rawSender = process.env.RESEND_VERIFIED_SENDER;
+    const fromEmail = !rawSender || rawSender.includes('tudominio') || rawSender.includes('boleteria')
+      ? 'onboarding@resend.dev'
+      : rawSender;
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -216,7 +226,7 @@ async function sendPaymentRejectionEmail(
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'noreply@boleteria.com',
+        from: `Boletas <${fromEmail}>`,
         to: email,
         subject: '❌ Pago Rechazado - Acción Requerida',
         html: `
