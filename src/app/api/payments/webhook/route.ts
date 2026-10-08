@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import { verifyWebhookSignature } from '@/lib/wompi';
 
 export async function POST(request: NextRequest) {
+  const supabase = createAdminClient();
   try {
     const supabase = createAdminClient();
     const body = await request.text();
@@ -205,6 +206,7 @@ export async function POST(request: NextRequest) {
  * Maneja pagos rechazados / fallidos
  */
 async function handlePaymentFailed(reference: string, status: string) {
+  const supabase = createAdminClient();
   try {
     const supabase = createAdminClient();
     const { data: order } = await supabase
