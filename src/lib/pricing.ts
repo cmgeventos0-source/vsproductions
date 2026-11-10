@@ -40,6 +40,14 @@ export function getZonePricing(zone: Partial<Zone> & { price: number }): ZonePri
   };
 }
 
+export function getZoneMinorPrice(zone?: Partial<Zone> | null): number {
+  if (!zone) return 0;
+  if (zone.minor_price !== undefined && zone.minor_price !== null && !isNaN(Number(zone.minor_price)) && Number(zone.minor_price) >= 0) {
+    return Number(zone.minor_price);
+  }
+  return getZonePricing(zone as any).currentPrice;
+}
+
 // Cálculo de precios totalmente configurable desde app_config
 export function computeTotals(
   config: AppConfig,

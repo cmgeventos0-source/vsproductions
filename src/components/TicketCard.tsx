@@ -79,9 +79,20 @@ export default function TicketCard({ ticket }: { ticket: Ticket }) {
         
         <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
           <div>
-            <span className="rounded-full bg-accent-2/20 px-3 py-1 text-xs font-bold text-accent-2 border border-accent-2/30 backdrop-blur">
-              {zone?.name ?? "ENTRADA GENERAL"}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="rounded-full bg-accent-2/20 px-3 py-1 text-xs font-bold text-accent-2 border border-accent-2/30 backdrop-blur">
+                {zone?.name ?? "ENTRADA GENERAL"}
+              </span>
+              {currentTicket.ticket_type === "minor" ? (
+                <span className="rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-300 border border-amber-500/30 backdrop-blur">
+                  👶 BOLETA MENOR
+                </span>
+              ) : currentTicket.ticket_type === "adult" ? (
+                <span className="rounded-full bg-purple-500/20 px-2.5 py-1 text-xs font-bold text-purple-300 border border-purple-500/30 backdrop-blur">
+                  👤 BOLETA ADULTO
+                </span>
+              ) : null}
+            </div>
             <h3 className="mt-2 text-xl font-black leading-snug text-white">{event?.name ?? "Evento Boletería.CO"}</h3>
             <p className="text-xs text-muted">
               {functionInfo?.starts_at ? formatDateTime(functionInfo.starts_at) : ""}
@@ -92,6 +103,11 @@ export default function TicketCard({ ticket }: { ticket: Ticket }) {
 
       {/* Ticket Details */}
       <div className="p-6">
+        {currentTicket.ticket_type === "minor" && (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200 text-center font-semibold">
+            👶 Boleta Menor de Edad · Debe ingresar obligatoriamente acompañado de un adulto responsable.
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4 rounded-2xl border border-border bg-surface-2 p-4 text-xs">
           <div>
             <span className="text-muted block">Titular</span>

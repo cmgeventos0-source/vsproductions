@@ -16,6 +16,8 @@ export default function NewEventPage() {
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [saleMode, setSaleMode] = useState<"general" | "assigned">("general");
+  const [allowsMinors, setAllowsMinors] = useState(false);
+  const [maxMinorsPerAdult, setMaxMinorsPerAdult] = useState(2);
   const [categories, setCategories] = useState<any[]>([]);
   const [venues, setVenues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +56,7 @@ export default function NewEventPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const { error } = await supabase.from("events").insert({
+    const eventPayload: any = {
       slug: slug,
       name: name,
       category_id: categoryId || null,
@@ -62,7 +64,19 @@ export default function NewEventPage() {
       description: description || null,
       image_url: imageUrl || null,
       sale_mode: saleMode,
-    });
+      allows_minors: allowsMinors,
+      max_minors_per_adult: maxMinorsPerAdult || 2,
+    };
+
+    let { error } = await supabase.from("events").insert(eventPayload);
+    if (error && (error.message.includes("allows_minors") || error.code === "PGRST204")) {
+      // Si la migración aún no se ha ejecutado en Supabase, reintentar sin las columnas
+      delete eventPayload.allows_minors;
+      delete eventPayload.max_minors_per_adult;
+      const fallback = await supabase.from("events").insert(eventPayload);
+      error = fallback.error;
+    }
+
     if (error) {
       alert("Error al crear evento: " + error.message);
       return;
@@ -132,6 +146,43 @@ export default function NewEventPage() {
                 <option value='general'>Admisión General</option>
                 <option value='assigned'>Asientos Asignados</option>
               </select>
+            </div>
+
+            {/* Configuración de Menores */}
+            <div className="rounded-2xl border border-purple-500/30 bg-purple-950/20 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowsMinors}
+                      onChange={(e) => setAllowsMinors(e.target.checked)}
+                      className="h-4 w-4 rounded accent-purple-600 cursor-pointer"
+                    />
+                    👶 Evento para menores (requiere adulto acompañante)
+                  </label>
+                  <p className="text-xs text-muted mt-1">
+                    Al activar esta opción, los menores solo podrán asistir si van con un adulto que compre su boleta. Podrás definir el precio de la boleta de menor por cada zona.
+                  </p>
+                </div>
+              </div>
+
+              {allowsMinors && (
+                <div className="pt-2 border-t border-white/10">
+                  <label className="label text-xs">Máximo de menores por cada adulto</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={maxMinorsPerAdult}
+                    onChange={(e) => setMaxMinorsPerAdult(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="input w-full sm:w-48 text-sm"
+                  />
+                  <p className="text-[11px] text-muted mt-1">
+                    Por defecto: 2 menores por adulto. Cada uno obtiene su propia boleta digital.
+                  </p>
+                </div>
+              )}
             </div>
             <button type='submit' disabled={uploading} className='btn-primary w-full py-3'>
               {uploading ? "Subiendo imagen..." : "Crear Evento"}

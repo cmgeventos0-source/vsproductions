@@ -24,6 +24,8 @@ export type Event = {
   sale_mode: "general" | "assigned";
   status: "draft" | "published" | "ended" | "cancelled";
   created_at: string;
+  allows_minors?: boolean;
+  max_minors_per_adult?: number;
   category?: Category | null;
   venue?: Venue | null;
   functions?: EventFunction[];
@@ -47,6 +49,7 @@ export type Zone = {
   function_id: string;
   name: string;
   price: number;
+  minor_price?: number | null;
   presale_price?: number | null;
   presale_end_at?: string | null;
   sale_type?: "individual" | "full_zone";
@@ -112,6 +115,8 @@ export type Ticket = {
   code: string;
   qr_data: string;
   status: "active" | "redeemed" | "transferred" | "cancelled";
+  ticket_type?: "adult" | "minor";
+  parent_ticket_id?: string | null;
   issued_at: string;
   redeemed_at: string | null;
   order?: Order | null;

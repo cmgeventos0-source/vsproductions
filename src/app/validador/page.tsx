@@ -116,6 +116,16 @@ export default function ValidadorPage() {
                 <p>
                   <strong>Titular:</strong> {result.ticketDetails.holder}
                 </p>
+                {result.ticketDetails.ticketType && (
+                  <p>
+                    <strong>Tipo:</strong>{" "}
+                    {result.ticketDetails.ticketType === "minor" ? (
+                      <span className="font-bold text-amber-300">👶 Menor de Edad (Requiere Adulto)</span>
+                    ) : (
+                      <span className="font-bold text-purple-300">👤 Adulto</span>
+                    )}
+                  </p>
+                )}
                 <p>
                   <strong>Localidad:</strong> <span className="text-accent-2 font-bold">{result.ticketDetails.zone}</span>
                 </p>

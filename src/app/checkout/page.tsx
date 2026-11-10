@@ -4,9 +4,9 @@ import CheckoutForm from "../../components/CheckoutForm";
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ functionId?: string; zoneId?: string; seats?: string; qty?: string }>;
+  searchParams: Promise<{ functionId?: string; zoneId?: string; seats?: string; qty?: string; minorQty?: string }>;
 }) {
-  const { functionId, zoneId, seats: seatIdsParam, qty } = await searchParams;
+  const { functionId, zoneId, seats: seatIdsParam, qty, minorQty } = await searchParams;
   const supabase = await createClient();
 
   if (!functionId) {
@@ -33,7 +33,11 @@ export default async function CheckoutPage({
   }
 
   if (eventFunction?.event_id) {
-    const { data: ev } = await supabase.from("events").select("id, slug, name, description, image_url, sale_mode, status, category_id, venue_id").eq("id", eventFunction.event_id).maybeSingle();
+    const { data: ev } = await supabase
+      .from("events")
+      .select("id, slug, name, description, image_url, sale_mode, status, category_id, venue_id, allows_minors, max_minors_per_adult")
+      .eq("id", eventFunction.event_id)
+      .maybeSingle();
     (eventFunction as any).event = ev || null;
   }
 
@@ -59,6 +63,7 @@ export default async function CheckoutPage({
   }
 
   const parsedQty = qty ? parseInt(qty, 10) : 1;
+  const parsedMinorQty = minorQty ? parseInt(minorQty, 10) : 0;
 
   return (
     <CheckoutForm
@@ -66,6 +71,7 @@ export default async function CheckoutPage({
       zone={zone}
       seats={seats}
       initialQuantity={isNaN(parsedQty) ? 1 : parsedQty}
+      initialMinorQuantity={isNaN(parsedMinorQty) ? 0 : parsedMinorQty}
     />
   );
 }

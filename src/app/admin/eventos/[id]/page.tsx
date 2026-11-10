@@ -28,6 +28,8 @@ export default function EditEventPage({
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [saleMode, setSaleMode] = useState<"general" | "assigned">("general");
+  const [allowsMinors, setAllowsMinors] = useState(false);
+  const [maxMinorsPerAdult, setMaxMinorsPerAdult] = useState(2);
 
   // Function management
   const [newFunction, setNewFunction] = useState({
@@ -76,6 +78,8 @@ export default function EditEventPage({
       setDescription(event.description ?? "");
       setImageUrl(event.image_url ?? "");
       setSaleMode(event.sale_mode ?? "general");
+      setAllowsMinors(Boolean(event.allows_minors));
+      setMaxMinorsPerAdult(event.max_minors_per_adult || 2);
     }
   }, [event]);
 
@@ -106,7 +110,7 @@ export default function EditEventPage({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!event) return;
-    const { error } = await supabase.from("events").update({
+    const updatePayload: any = {
       name: name,
       slug: slug,
       category_id: categoryId || null,
@@ -114,7 +118,18 @@ export default function EditEventPage({
       description: description || null,
       image_url: imageUrl || null,
       sale_mode: saleMode,
-    }).eq("id", id);
+      allows_minors: allowsMinors,
+      max_minors_per_adult: maxMinorsPerAdult || 2,
+    };
+
+    let { error } = await supabase.from("events").update(updatePayload).eq("id", id);
+    if (error && (error.message.includes("allows_minors") || error.code === "PGRST204")) {
+      delete updatePayload.allows_minors;
+      delete updatePayload.max_minors_per_adult;
+      const fallback = await supabase.from("events").update(updatePayload).eq("id", id);
+      error = fallback.error;
+    }
+
     if (error) {
       alert("Error al guardar evento: " + error.message);
       return;
@@ -308,6 +323,43 @@ function toIsoStringFromInput(inputVal: string | null | undefined): string | nul
                 <option value="general">General</option>
                 <option value="assigned">Asignado</option>
               </select>
+            </div>
+
+            {/* Configuración de Menores */}
+            <div className="rounded-2xl border border-purple-500/30 bg-purple-950/20 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-bold text-white flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowsMinors}
+                      onChange={(e) => setAllowsMinors(e.target.checked)}
+                      className="h-4 w-4 rounded accent-purple-600 cursor-pointer"
+                    />
+                    👶 Evento para menores (requiere adulto acompañante)
+                  </label>
+                  <p className="text-xs text-muted mt-1">
+                    Al activar esta opción, los menores solo podrán ingresar si van con un adulto que adquiera su boleta. Podrás configurar el precio de menor por localidad en el mapa de zonas.
+                  </p>
+                </div>
+              </div>
+
+              {allowsMinors && (
+                <div className="pt-2 border-t border-white/10">
+                  <label className="block text-[10px] text-muted mb-1">Máximo de menores por cada adulto</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={maxMinorsPerAdult}
+                    onChange={(e) => setMaxMinorsPerAdult(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="input w-full sm:w-48 text-sm p-2 rounded-xl border border-border bg-surface"
+                  />
+                  <p className="text-[11px] text-muted mt-1">
+                    Por defecto: 2 menores por adulto. Cada uno obtiene su propia boleta digital.
+                  </p>
+                </div>
+              )}
             </div>
             <button type="submit"
               className="btn btn-primary w-full py-2.5"

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatCOP } from '@/lib/format';
 import type { EventFunction, Zone, Seat } from "@/lib/types";
-import { getZonePricing } from "@/lib/pricing";
+import { getZonePricing, getZoneMinorPrice } from "@/lib/pricing";
 
 type PaymentMethod = {
   id: string;
@@ -21,11 +21,13 @@ export default function CheckoutForm({
   zone,
   seats,
   initialQuantity = 1,
+  initialMinorQuantity = 0,
 }: {
   eventFunction: EventFunction & { event?: any };
   zone?: Zone;
   seats?: Seat[];
   initialQuantity?: number;
+  initialMinorQuantity?: number;
 }) {
   const router = useRouter();
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -66,16 +68,25 @@ export default function CheckoutForm({
   }, []);
 
   const [customQty, setCustomQty] = useState<number>(initialQuantity || 1);
+  const [minorQty, setMinorQty] = useState<number>(initialMinorQuantity || 0);
   const [acceptedTerms, setAcceptedTerms] = useState<boolean>(false);
 
   const event = eventFunction.event;
   const isAssigned = seats && seats.length > 0;
-  const quantity = isAssigned ? seats.length : Math.max(1, customQty);
+  const maxMinorsPerAdult = event?.max_minors_per_adult || 2;
+  const adultQuantity = isAssigned ? seats.length : Math.max(1, customQty);
+  const minorQuantity = event?.allows_minors ? Math.min(Math.max(0, minorQty), adultQuantity * maxMinorsPerAdult) : 0;
+  const quantity = adultQuantity + minorQuantity;
+
   const zonePricing = zone ? getZonePricing(zone) : { currentPrice: 0, fullPrice: 0 };
-  const unitPrice = zonePricing.currentPrice;
-  const subtotal = isAssigned
-    ? seats.reduce((acc, s) => acc + unitPrice, 0)
-    : unitPrice * quantity;
+  const adultUnitPrice = zonePricing.currentPrice;
+  const minorUnitPrice = zone ? getZoneMinorPrice(zone) : adultUnitPrice;
+
+  const adultSubtotal = isAssigned
+    ? seats.reduce((acc, s) => acc + adultUnitPrice, 0)
+    : adultUnitPrice * adultQuantity;
+  const minorSubtotal = minorUnitPrice * minorQuantity;
+  const subtotal = adultSubtotal + minorSubtotal;
 
   const serviceFee = 0;
   const total = subtotal;
@@ -113,6 +124,8 @@ export default function CheckoutForm({
     if (receiptFile) formData.append("receiptFile", receiptFile);
     if (promoCode) formData.append("promoCode", promoCode);
     formData.append("quantity", quantity.toString());
+    formData.append("adultQuantity", adultQuantity.toString());
+    formData.append("minorQuantity", minorQuantity.toString());
 
     try {
       const { createOrder } = await import("../app/actions");
@@ -439,14 +452,34 @@ export default function CheckoutForm({
                 </div>
               </div>
             )}
-            <div className="flex justify-between border-t border-border pt-2">
-              <span className="text-muted">Precio Unitario:</span>
-              <span className="text-white">{formatCOP(unitPrice)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted">Subtotal ({quantity} boletas):</span>
-              <span className="text-white">{formatCOP(subtotal)}</span>
-            </div>
+            {event?.allows_minors ? (
+              <div className="space-y-2 border-t border-border pt-2">
+                <div className="flex justify-between">
+                  <span className="text-muted">👤 Adultos ({adultQuantity}):</span>
+                  <span className="text-white font-semibold">{formatCOP(adultSubtotal)}</span>
+                </div>
+                {minorQuantity > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted">👶 Menores ({minorQuantity}):</span>
+                    <span className="text-amber-300 font-semibold">{formatCOP(minorSubtotal)}</span>
+                  </div>
+                )}
+                <div className="rounded-xl bg-purple-950/30 border border-purple-500/20 p-2.5 text-[11px] text-purple-200">
+                  ℹ️ Evento para menores: Cada boleta de menor se emitirá asociada al adulto responsable ({customerName || "el titular"}).
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between border-t border-border pt-2">
+                  <span className="text-muted">Precio Unitario:</span>
+                  <span className="text-white">{formatCOP(adultUnitPrice)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted">Subtotal ({quantity} boletas):</span>
+                  <span className="text-white">{formatCOP(subtotal)}</span>
+                </div>
+              </>
+            )}
             {serviceFee > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted">Servicio Tuboleta:</span>

@@ -78,7 +78,7 @@ export default function AdminBoletasPage() {
 
     const { data: tickets } = await supabase
       .from("tickets")
-      .select("id, order_id, function_id, zone_id, seat_id, holder_name, code, qr_data, status, issued_at, redeemed_at")
+      .select("*")
       .in("order_id", orderRows.map((o) => o.id));
 
     if (tickets && tickets.length > 0) {
@@ -376,7 +376,7 @@ export default function AdminBoletasPage() {
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 border-t border-border pt-3">
                   {order.tickets.map((ticket) => (
                     <div key={ticket.id} className="rounded-xl border border-border bg-surface-2 p-3 text-center space-y-1.5">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
                         <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
                           ticket.status === "active" ? "bg-emerald-500/20 text-emerald-400" :
                           ticket.status === "redeemed" ? "bg-amber-500/20 text-amber-400" :
@@ -384,6 +384,11 @@ export default function AdminBoletasPage() {
                         }`}>
                           {ticket.status === "active" ? "ACTIVA" : ticket.status === "redeemed" ? "USADA" : ticket.status}
                         </span>
+                        {ticket.ticket_type === "minor" && (
+                          <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold">
+                            👶 Menor
+                          </span>
+                        )}
                         {ticket.zone && (
                           <span className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white" style={{ backgroundColor: ticket.zone.color ?? "#7c3aed" }}>
                             {ticket.zone.name}

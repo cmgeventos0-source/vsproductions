@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth, requireAdmin } from "@/lib/auth-guards";
 import { redirect } from "next/navigation";
 import { generateSecureTicketCode } from "@/lib/ticket-utils";
-import { getZonePricing } from "@/lib/pricing";
+import { getZonePricing, getZoneMinorPrice } from "@/lib/pricing";
 import { EmailService } from "@/lib/services/emailService";
 
 export async function signOut() {
@@ -46,13 +46,24 @@ export async function createOrder(formData: FormData) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: zone } = zoneId
-    ? await supabase
+  let zone = null;
+  if (zoneId) {
+    let { data: zData, error: zErr } = await supabase
+      .from("zones")
+      .select("id, price, minor_price, presale_price, presale_end_at, capacity, sold_count, function_id")
+      .eq("id", zoneId)
+      .single();
+
+    if (zErr && (zErr.message?.includes("minor_price") || zErr.code === "PGRST204")) {
+      const fallback = await supabase
         .from("zones")
         .select("id, price, presale_price, presale_end_at, capacity, sold_count, function_id")
         .eq("id", zoneId)
-        .single()
-    : { data: null };
+        .single();
+      zData = fallback.data;
+    }
+    zone = zData;
+  }
 
   if (zoneId && !zone) {
     throw new Error("La zona seleccionada no existe.");
@@ -61,10 +72,42 @@ export async function createOrder(formData: FormData) {
     throw new Error("La zona no corresponde a esta función.");
   }
 
-  const quantity = seatIds.length > 0 ? seatIds.length : Math.max(1, requestedQty);
+  let allowsMinors = false;
+  let maxMinorsPerAdult = 2;
+
+  const { data: eventFunction } = await supabase
+    .from("event_functions")
+    .select("id, event_id, event:events(id, allows_minors, max_minors_per_adult)")
+    .eq("id", functionId)
+    .maybeSingle();
+
+  if (eventFunction?.event) {
+    const ev = eventFunction.event as any;
+    allowsMinors = Boolean(ev.allows_minors);
+    maxMinorsPerAdult = ev.max_minors_per_adult || 2;
+  }
+
+  const rawAdultQty = formData.get("adultQuantity");
+  const rawMinorQty = formData.get("minorQuantity");
+
+  let adultQty = rawAdultQty !== null ? Math.max(1, Number(rawAdultQty)) : (seatIds.length > 0 ? seatIds.length : Math.max(1, requestedQty));
+  let minorQty = allowsMinors && rawMinorQty !== null ? Math.max(0, Number(rawMinorQty)) : 0;
+
+  if (allowsMinors && minorQty > 0) {
+    if (adultQty < 1) {
+      throw new Error("Para comprar boleta de menor es obligatorio que esté acompañado por un adulto.");
+    }
+    if (minorQty > adultQty * maxMinorsPerAdult) {
+      throw new Error(`Máximo permitido: ${maxMinorsPerAdult} menor(es) por cada adulto.`);
+    }
+  }
+
+  const quantity = seatIds.length > 0 ? seatIds.length : (adultQty + minorQty);
   const pricing = zone ? getZonePricing(zone) : { currentPrice: 0, fullPrice: 0 };
-  const unitPrice = pricing.currentPrice;
-  const computedSubtotal = unitPrice * quantity;
+  const adultUnitPrice = pricing.currentPrice;
+  const minorUnitPrice = zone ? getZoneMinorPrice(zone) : adultUnitPrice;
+  const unitPrice = adultUnitPrice;
+  const computedSubtotal = (adultUnitPrice * adultQty) + (minorUnitPrice * minorQty);
   const computedServiceFee = 0;
 
   if (zone && seatIds.length === 0) {
@@ -182,19 +225,58 @@ export async function createOrder(formData: FormData) {
       function_id: functionId,
       seat_id: seatId,
       quantity: 1,
-      unit_price: unitPrice
+      unit_price: unitPrice,
+      item_type: 'adult'
     }));
-    const { error: itemErr } = await adminClient.from("order_items").insert(seatItems);
-    if (itemErr) console.error("Error inserting seat order_items:", itemErr);
+    let { error: itemErr } = await adminClient.from("order_items").insert(seatItems);
+    if (itemErr && (itemErr.message?.includes("item_type") || itemErr.code === "PGRST204")) {
+      const retryItems = seatIds.map(seatId => ({
+        order_id: orderId,
+        zone_id: zoneId,
+        function_id: functionId,
+        seat_id: seatId,
+        quantity: 1,
+        unit_price: unitPrice
+      }));
+      await adminClient.from("order_items").insert(retryItems);
+    }
+  } else if (allowsMinors && minorQty > 0) {
+    const adultItem = {
+      order_id: orderId,
+      zone_id: zoneId,
+      function_id: functionId,
+      quantity: adultQty,
+      unit_price: adultUnitPrice,
+      item_type: 'adult'
+    };
+    const minorItem = {
+      order_id: orderId,
+      zone_id: zoneId,
+      function_id: functionId,
+      quantity: minorQty,
+      unit_price: minorUnitPrice,
+      item_type: 'minor'
+    };
+    let { error: itemErr } = await adminClient.from("order_items").insert([adultItem, minorItem]);
+    if (itemErr && (itemErr.message?.includes("item_type") || itemErr.code === "PGRST204")) {
+      delete (adultItem as any).item_type;
+      delete (minorItem as any).item_type;
+      await adminClient.from("order_items").insert([adultItem, minorItem]);
+    }
   } else {
-    const { error: itemErr } = await adminClient.from("order_items").insert({
+    const generalItem = {
       order_id: orderId,
       zone_id: zoneId,
       function_id: functionId,
       quantity: quantity,
-      unit_price: unitPrice
-    });
-    if (itemErr) console.error("Error inserting general order_items:", itemErr);
+      unit_price: unitPrice,
+      item_type: 'adult'
+    };
+    let { error: itemErr } = await adminClient.from("order_items").insert(generalItem);
+    if (itemErr && (itemErr.message?.includes("item_type") || itemErr.code === "PGRST204")) {
+      delete (generalItem as any).item_type;
+      await adminClient.from("order_items").insert(generalItem);
+    }
   }
 
   return { success: true, orderId };
@@ -401,10 +483,19 @@ export async function redeemTicketAction(ticketCode: string) {
   await requireAdmin();
   const supabase = await createClient();
   
-  const { data: ticket, error: fetchError } = await supabase.from("tickets")
-    .select("id, order_id, function_id, zone_id, seat_id, holder_name, code, qr_data, status, issued_at, redeemed_at")
+  let { data: ticket, error: fetchError } = await supabase.from("tickets")
+    .select("id, order_id, function_id, zone_id, seat_id, holder_name, code, qr_data, status, issued_at, redeemed_at, ticket_type")
     .eq("code", ticketCode)
     .single();
+
+  if (fetchError && (fetchError.message?.includes("ticket_type") || fetchError.code === "PGRST204")) {
+    const fallback = await supabase.from("tickets")
+      .select("id, order_id, function_id, zone_id, seat_id, holder_name, code, qr_data, status, issued_at, redeemed_at")
+      .eq("code", ticketCode)
+      .single();
+    ticket = fallback.data as any;
+    fetchError = fallback.error;
+  }
 
   if (fetchError || !ticket) {
     return { status: "invalid", message: "❌ Código Inválido o No Encontrado" };
@@ -447,15 +538,18 @@ export async function redeemTicketAction(ticketCode: string) {
     .update({ status: "redeemed", redeemed_at: new Date().toISOString() })
     .eq("id", ticket.id);
 
+  const isMinor = (ticket as any)?.ticket_type === "minor";
+
   return { 
     status: "valid", 
-    message: "✅ ¡ENTRADA VÁLIDA - INGRESO AUTORIZADO!",
+    message: isMinor ? "✅ ¡ENTRADA MENOR VÁLIDA (VERIFICAR ACOMPAÑANTE ADULTO)!" : "✅ ¡ENTRADA VÁLIDA - INGRESO AUTORIZADO!",
     ticketDetails: {
       code: ticket.code,
       holder: ticket.holder_name,
       zone: zone?.name || "General",
       seat: seat ? `Fila ${seat.row_name} - Silla ${seat.number}` : "N/A",
-      event: event?.name || "Evento"
+      event: event?.name || "Evento",
+      ticketType: (ticket as any)?.ticket_type || (isMinor ? "minor" : "adult")
     }
   };
 }
@@ -548,18 +642,32 @@ export async function generateTicketsForOrder(orderId: string) {
       }
     }
 
+    const isMinor = (item as any).item_type === "minor";
+    const holderName = isMinor
+      ? (order?.customer_name ? `${order.customer_name} (Menor a cargo)` : "Menor de Edad")
+      : (order?.customer_name || "Asistente");
+
     for (let i = 0; i < countToCreate; i++) {
       const code = generateSecureTicketCode();
-      const { error: ticketError } = await supabase.from("tickets").insert({
+      const ticketPayload: any = {
         order_id: orderId,
         function_id: item.function_id,
         zone_id: item.zone_id,
         seat_id: item.seat_id,
-        holder_name: order?.customer_name,
+        holder_name: holderName,
+        ticket_type: isMinor ? 'minor' : 'adult',
         code,
         qr_data: code,
         status: 'active'
-      });
+      };
+
+      let { error: ticketError } = await supabase.from("tickets").insert(ticketPayload);
+      if (ticketError && (ticketError.message?.includes("ticket_type") || ticketError.code === "PGRST204")) {
+        delete ticketPayload.ticket_type;
+        const retry = await supabase.from("tickets").insert(ticketPayload);
+        ticketError = retry.error;
+      }
+
       if (ticketError) {
         console.error("[generateTicketsForOrder] Error creating ticket:", ticketError);
       }
@@ -635,7 +743,8 @@ export async function addZoneAction(
   presaleEndAt?: string | null,
   saleType?: "individual" | "full_zone",
   isLocked?: boolean,
-  hasSeats?: boolean
+  hasSeats?: boolean,
+  minorPrice?: number | null
 ) {
   await requireAdmin();
   const supabase = createAdminClient();
@@ -657,6 +766,9 @@ export async function addZoneAction(
     has_seats: hasSeats ?? true,
   };
 
+  if (minorPrice !== undefined && minorPrice !== null) {
+    payload.minor_price = minorPrice;
+  }
   if (presalePrice !== undefined && presalePrice !== null) {
     payload.presale_price = presalePrice;
   }
@@ -670,7 +782,8 @@ export async function addZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("minor_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+    delete payload.minor_price;
     delete payload.is_locked;
     delete payload.has_seats;
     delete payload.presale_price;
@@ -690,6 +803,7 @@ export async function updateZoneAction(
   data: {
     name?: string;
     price?: number;
+    minor_price?: number | null;
     presale_price?: number | null;
     presale_end_at?: string | null;
     sale_type?: "individual" | "full_zone";
@@ -705,6 +819,7 @@ export async function updateZoneAction(
   const updateData: Record<string, any> = {};
   if (data.name !== undefined) updateData.name = data.name;
   if (data.price !== undefined) updateData.price = data.price;
+  if (data.minor_price !== undefined) updateData.minor_price = data.minor_price;
   if (data.presale_price !== undefined) updateData.presale_price = data.presale_price;
   if (data.presale_end_at !== undefined) updateData.presale_end_at = data.presale_end_at;
   if (data.sale_type !== undefined) updateData.sale_type = data.sale_type;
@@ -720,7 +835,8 @@ export async function updateZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("minor_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+    delete updateData.minor_price;
     delete updateData.is_locked;
     delete updateData.has_seats;
     delete updateData.presale_price;

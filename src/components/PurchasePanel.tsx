@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Event, Seat, Zone } from "@/lib/types";
 import { formatCOP, formatDateTime, formatDate, formatTime } from "@/lib/format";
-import { getZonePricing } from "@/lib/pricing";
+import { getZonePricing, getZoneMinorPrice } from "@/lib/pricing";
 import { addToCart } from "@/app/actions";
 import { SafeDateRender } from "@/components/SafeDateRender";
 
@@ -75,6 +75,9 @@ export default function PurchasePanel({
   }
 
   const [qty, setQty] = useState(1);
+  const [minorQty, setMinorQty] = useState(0);
+  const maxMinorsPerAdult = event.max_minors_per_adult || 2;
+  const maxMinors = qty * maxMinorsPerAdult;
   const [selectedSeats, setSelectedSeats] = useState<Set<string>>(new Set());
   const [isAdding, setIsAdding] = useState(false);
   const [step, setStep] = useState(1);
@@ -156,11 +159,12 @@ export default function PurchasePanel({
     if (!activeFunction || !activeZone) return;
     setIsAdding(true);
     try {
+      const totalTicketsCount = qty + (event.allows_minors ? minorQty : 0);
       await addToCart({
         functionId: activeFunction.id,
         zoneId: activeZone.id,
         seatIds: [...selectedSeats],
-        quantity: qty,
+        quantity: totalTicketsCount,
       });
 
       const params = new URLSearchParams();
@@ -168,13 +172,22 @@ export default function PurchasePanel({
       params.set("zoneId", activeZone.id);
       if (selectedSeats.size > 0) {
         params.set("seats", [...selectedSeats].join(","));
-      } else {
-        params.set("qty", qty.toString());
+      }
+      params.set("qty", qty.toString());
+      if (event.allows_minors && minorQty > 0) {
+        params.set("minorQty", minorQty.toString());
       }
       router.push(`/checkout?${params.toString()}`);
     } catch (err) {
       console.error("Error al ir a pagar:", err);
-      router.push(`/checkout?functionId=${activeFunction.id}&zoneId=${activeZone.id}&qty=${qty}`);
+      const fallbackParams = new URLSearchParams();
+      fallbackParams.set("functionId", activeFunction.id);
+      fallbackParams.set("zoneId", activeZone.id);
+      fallbackParams.set("qty", qty.toString());
+      if (event.allows_minors && minorQty > 0) {
+        fallbackParams.set("minorQty", minorQty.toString());
+      }
+      router.push(`/checkout?${fallbackParams.toString()}`);
     } finally {
       setIsAdding(false);
     }
@@ -609,18 +622,92 @@ export default function PurchasePanel({
           )}
         </div>
 
+        {/* Banner para eventos de menores */}
+        {event.allows_minors && (
+          <div className="mx-4 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 space-y-1">
+            <p className="font-bold flex items-center gap-1.5 text-amber-300">
+              👶 Evento para menores con acompañante obligatorio
+            </p>
+            <p className="text-[11px] text-amber-200/90 leading-relaxed">
+              Cada menor debe asistir acompañado de un adulto responsable con boleta. Puedes incluir hasta {maxMinorsPerAdult} menores por adulto.
+            </p>
+          </div>
+        )}
+
         <div className="border-t border-white/5" />
 
-        {/* Qty row — general individual zones only */}
+        {/* Qty row — general individual zones */}
         {activeZone && event.sale_mode === "general" && activeZone.sale_type !== "full_zone" && (
-          <div className="px-4 py-3 flex items-center justify-between border-b border-white/5 bg-white/[0.02]">
-            <span className="text-xs sm:text-sm font-bold text-white">Cantidad de entradas</span>
-            <div className="flex items-center gap-3">
-              <button type="button" className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-purple-600 active:scale-95" onClick={() => setQty((n) => Math.max(1, n - 1))}>-</button>
-              <span className="w-8 text-center font-black text-base text-purple-300">{qty}</span>
-              <button type="button" className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-purple-600 active:scale-95" onClick={() => setQty((n) => Math.min(10, n + 1))}>+</button>
+          event.allows_minors ? (
+            <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02] space-y-3">
+              {/* Adulto */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white block">👤 Boletas Adulto (Obligatorio)</span>
+                  <span className="text-[11px] text-purple-300 font-semibold">{formatCOP(getZonePricing(activeZone).currentPrice)} c/u</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-purple-600 active:scale-95"
+                    onClick={() => {
+                      const next = Math.max(1, qty - 1);
+                      setQty(next);
+                      setMinorQty((m) => Math.min(m, next * maxMinorsPerAdult));
+                    }}
+                  >
+                    -
+                  </button>
+                  <span className="w-8 text-center font-black text-base text-purple-300">{qty}</span>
+                  <button
+                    type="button"
+                    className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-purple-600 active:scale-95"
+                    onClick={() => setQty((n) => Math.min(10, n + 1))}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Menores */}
+              <div className="flex items-center justify-between pt-2.5 border-t border-white/5">
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white block">👶 Boletas Menor de Edad</span>
+                  <span className="text-[11px] text-amber-300 font-semibold">
+                    {formatCOP(getZoneMinorPrice(activeZone))} c/u · Máx. {maxMinors} ({maxMinorsPerAdult}/adulto)
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={minorQty <= 0}
+                    className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-amber-600 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => setMinorQty((m) => Math.max(0, m - 1))}
+                  >
+                    -
+                  </button>
+                  <span className="w-8 text-center font-black text-base text-amber-300">{minorQty}</span>
+                  <button
+                    type="button"
+                    disabled={minorQty >= maxMinors}
+                    className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-amber-600 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => setMinorQty((m) => Math.min(maxMinors, m + 1))}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="px-4 py-3 flex items-center justify-between border-b border-white/5 bg-white/[0.02]">
+              <span className="text-xs sm:text-sm font-bold text-white">Cantidad de entradas</span>
+              <div className="flex items-center gap-3">
+                <button type="button" className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-purple-600 active:scale-95" onClick={() => setQty((n) => Math.max(1, n - 1))}>-</button>
+                <span className="w-8 text-center font-black text-base text-purple-300">{qty}</span>
+                <button type="button" className="btn-outline h-9 w-9 rounded-xl !px-0 text-base font-black hover:bg-purple-600 active:scale-95" onClick={() => setQty((n) => Math.min(10, n + 1))}>+</button>
+              </div>
+            </div>
+          )
         )}
 
         {/* Palco completo notice */}
@@ -641,11 +728,17 @@ export default function PurchasePanel({
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-[10px] text-muted leading-none">
-                {event.sale_mode === "assigned" ? "Precio / boleta" : `${qty} boleta(s) · ${activeZone?.name ?? "Sin zona"}`}
+                {event.allows_minors
+                  ? `${qty} Adulto(s)${minorQty > 0 ? ` + ${minorQty} Menor(es)` : ""} · ${activeZone?.name ?? ""}`
+                  : event.sale_mode === "assigned"
+                  ? "Precio / boleta"
+                  : `${qty} boleta(s) · ${activeZone?.name ?? "Sin zona"}`}
               </p>
               {activeZone ? (
                 <p className="text-xl font-black text-white mt-0.5 leading-none">
-                  {event.sale_mode === "general"
+                  {event.allows_minors
+                    ? formatCOP((getZonePricing(activeZone).currentPrice * qty) + (getZoneMinorPrice(activeZone) * minorQty))
+                    : event.sale_mode === "general"
                     ? formatCOP(getZonePricing(activeZone).currentPrice * qty)
                     : formatCOP(getZonePricing(activeZone).currentPrice) + " / boleta"}
                 </p>
