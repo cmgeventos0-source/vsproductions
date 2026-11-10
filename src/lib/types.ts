@@ -50,6 +50,7 @@ export type Zone = {
   name: string;
   price: number;
   minor_price?: number | null;
+  minor_presale_price?: number | null;
   presale_price?: number | null;
   presale_end_at?: string | null;
   sale_type?: "individual" | "full_zone";

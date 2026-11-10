@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { saveZoneCoordinatesAction, renameZoneAction, divideZoneAction, addZoneAction, deleteZoneAction, updateZoneAction } from "../../../../actions";
 import { formatCOP } from "@/lib/format";
-import { getZonePricing } from "@/lib/pricing";
+import { getZonePricing, getZoneMinorPricing } from "@/lib/pricing";
 import type { Zone } from "@/lib/types";
 
 function getCentroid(coordsStr: string) {
@@ -114,6 +114,7 @@ export default function MapEditorPage() {
   const [newZonePrice, setNewZonePrice] = useState(0);
   const [newZoneMinorPrice, setNewZoneMinorPrice] = useState<number | null>(null);
   const [newZonePresalePrice, setNewZonePresalePrice] = useState<number | null>(null);
+  const [newZoneMinorPresalePrice, setNewZoneMinorPresalePrice] = useState<number | null>(null);
   const [newZonePresaleEndAt, setNewZonePresaleEndAt] = useState("");
   const [newZoneSaleType, setNewZoneSaleType] = useState<"individual" | "full_zone">("individual");
   const [newZoneCapacity, setNewZoneCapacity] = useState<number | null>(null);
@@ -126,6 +127,7 @@ export default function MapEditorPage() {
   const [editZonePrice, setEditZonePrice] = useState(0);
   const [editZoneMinorPrice, setEditZoneMinorPrice] = useState<number | null>(null);
   const [editZonePresalePrice, setEditZonePresalePrice] = useState<number | null>(null);
+  const [editZoneMinorPresalePrice, setEditZoneMinorPresalePrice] = useState<number | null>(null);
   const [editZonePresaleEndAt, setEditZonePresaleEndAt] = useState("");
   const [editZoneSaleType, setEditZoneSaleType] = useState<"individual" | "full_zone">("individual");
   const [editZoneCapacity, setEditZoneCapacity] = useState<number | null>(null);
@@ -386,7 +388,8 @@ export default function MapEditorPage() {
         newZoneSaleType,
         newZoneIsLocked,
         newZoneHasSeats,
-        newZoneMinorPrice
+        newZoneMinorPrice,
+        newZoneMinorPresalePrice
       );
       setSaving(null);
       if (res.success && res.zone) {
@@ -398,6 +401,7 @@ export default function MapEditorPage() {
         setNewZonePrice(0);
         setNewZoneMinorPrice(null);
         setNewZonePresalePrice(null);
+        setNewZoneMinorPresalePrice(null);
         setNewZonePresaleEndAt("");
         setNewZoneCapacity(null);
         setNewZoneSaleType("individual");
@@ -428,6 +432,7 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
     setEditZonePrice(z.price);
     setEditZoneMinorPrice(z.minor_price ?? null);
     setEditZonePresalePrice(z.presale_price ?? null);
+    setEditZoneMinorPresalePrice(z.minor_presale_price ?? null);
     setEditZonePresaleEndAt(toLocalDatetimeInputString(z.presale_end_at));
     setEditZoneSaleType(z.sale_type ?? "individual");
     setEditZoneCapacity(z.capacity);
@@ -462,6 +467,7 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
         name: editZoneName.trim(),
         price: editZonePrice,
         minor_price: editZoneMinorPrice,
+        minor_presale_price: editZoneMinorPresalePrice,
         presale_price: editZonePresalePrice,
         presale_end_at: editPresaleEndIso,
         sale_type: editZoneSaleType,
@@ -782,28 +788,39 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
             
             <div className="rounded-xl border border-white/10 bg-surface-2/50 p-3.5 space-y-3">
               <p className="text-xs font-bold uppercase tracking-wider text-purple-300">Configuración de Precios</p>
+              
+              {/* Precios Adulto */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label text-[11px]">Precio Adulto / Full ($)</label>
-                  <input type="number" min={0} className="input" value={newZonePrice || ""} onChange={(e) => setNewZonePrice(Number(e.target.value))} placeholder="Ej: 50000" />
+                  <input type="number" min={0} className="input" value={newZonePrice || ""} onChange={(e) => setNewZonePrice(Number(e.target.value))} placeholder="Ej: 170000" />
                 </div>
-                <div>
-                  <label className="label text-[11px]">Precio Menor ($) (Opcional)</label>
-                  <input type="number" min={0} className="input" value={newZoneMinorPrice ?? ""} onChange={(e) => setNewZoneMinorPrice(e.target.value ? Number(e.target.value) : null)} placeholder="Ej: 25000" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label text-[11px]">Precio Preventa Adulto ($)</label>
                   <input type="number" min={0} className="input" value={newZonePresalePrice ?? ""} onChange={(e) => setNewZonePresalePrice(e.target.value ? Number(e.target.value) : null)} placeholder="Opcional" />
                 </div>
-                {newZonePresalePrice !== null && newZonePresalePrice > 0 ? (
-                  <div>
-                    <label className="label text-[11px]">Límite Fecha Preventa</label>
-                    <input type="datetime-local" className="input text-xs" value={newZonePresaleEndAt} onChange={(e) => setNewZonePresaleEndAt(e.target.value)} />
-                  </div>
-                ) : <div />}
               </div>
+
+              {/* Precios Menor */}
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                <div>
+                  <label className="label text-[11px]">Precio Menor ($) (Opcional)</label>
+                  <input type="number" min={0} className="input" value={newZoneMinorPrice ?? ""} onChange={(e) => setNewZoneMinorPrice(e.target.value ? Number(e.target.value) : null)} placeholder="Ej: 170000" />
+                </div>
+                <div>
+                  <label className="label text-[11px]">Precio Preventa Menor ($)</label>
+                  <input type="number" min={0} className="input" value={newZoneMinorPresalePrice ?? ""} onChange={(e) => setNewZoneMinorPresalePrice(e.target.value ? Number(e.target.value) : null)} placeholder="Opcional" />
+                </div>
+              </div>
+
+              {/* Fecha Límite de Preventa */}
+              {((newZonePresalePrice !== null && newZonePresalePrice > 0) || (newZoneMinorPresalePrice !== null && newZoneMinorPresalePrice > 0)) && (
+                <div className="pt-2 border-t border-white/5">
+                  <label className="label text-[11px]">Límite Fecha/Hora Preventa</label>
+                  <input type="datetime-local" className="input text-xs" value={newZonePresaleEndAt} onChange={(e) => setNewZonePresaleEndAt(e.target.value)} />
+                  <p className="text-[10px] text-muted mt-1">Aplica tanto para la tarifa preventa de adultos como de menores.</p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1006,27 +1023,37 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
 
             <div className="rounded-xl border border-white/10 bg-surface-2/50 p-3.5 space-y-3">
               <p className="text-xs font-bold uppercase tracking-wider text-purple-300">Configuración de Precios</p>
+              
+              {/* Precios Adulto */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label text-[11px]">Precio Adulto / Full ($)</label>
                   <input type="number" min={0} className="input" value={editZonePrice || ""} onChange={(e) => setEditZonePrice(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="label text-[11px]">Precio Menor ($) (Opcional)</label>
-                  <input type="number" min={0} className="input" value={editZoneMinorPrice ?? ""} onChange={(e) => setEditZoneMinorPrice(e.target.value ? Number(e.target.value) : null)} placeholder="Ej: 25000" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
                   <label className="label text-[11px]">Precio Preventa Adulto ($)</label>
                   <input type="number" min={0} className="input" value={editZonePresalePrice ?? ""} onChange={(e) => setEditZonePresalePrice(e.target.value ? Number(e.target.value) : null)} placeholder="Sin preventa" />
                 </div>
+              </div>
+
+              {/* Precios Menor */}
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
                 <div>
-                  <label className="label text-[11px]">Límite Fecha Preventa</label>
-                  <input type="datetime-local" className="input text-xs" value={editZonePresaleEndAt} onChange={(e) => setEditZonePresaleEndAt(e.target.value)} />
+                  <label className="label text-[11px]">Precio Menor ($) (Opcional)</label>
+                  <input type="number" min={0} className="input" value={editZoneMinorPrice ?? ""} onChange={(e) => setEditZoneMinorPrice(e.target.value ? Number(e.target.value) : null)} placeholder="Ej: 170000" />
+                </div>
+                <div>
+                  <label className="label text-[11px]">Precio Preventa Menor ($)</label>
+                  <input type="number" min={0} className="input" value={editZoneMinorPresalePrice ?? ""} onChange={(e) => setEditZoneMinorPresalePrice(e.target.value ? Number(e.target.value) : null)} placeholder="Sin preventa" />
                 </div>
               </div>
-              <p className="text-[10px] text-muted">Si el evento permite menores, este precio se aplicará a cada boleta de menor en esta zona.</p>
+
+              {/* Límite Preventa */}
+              <div className="pt-2 border-t border-white/5">
+                <label className="label text-[11px]">Límite Fecha/Hora Preventa</label>
+                <input type="datetime-local" className="input text-xs" value={editZonePresaleEndAt} onChange={(e) => setEditZonePresaleEndAt(e.target.value)} />
+                <p className="text-[10px] text-muted mt-1">Aplica tanto para la tarifa preventa de adultos como de menores.</p>
+              </div>
             </div>
 
             <div><label className="label">Capacidad de Asientos / Personas</label><input type="number" min={1} className="input" value={editZoneCapacity ?? ""} onChange={(e) => setEditZoneCapacity(e.target.value ? Number(e.target.value) : null)} placeholder="Sin límite" /></div>
@@ -1062,6 +1089,7 @@ function ZoneRow({
 }) {
   const isRenaming = renamingId === zone.id;
   const pricing = getZonePricing(zone);
+  const minorPricing = getZoneMinorPricing(zone);
 
   return (
     <div className={`rounded-xl border p-3 transition-colors cursor-pointer ${active ? "border-purple-500 bg-purple-500/10" : "border-border hover:bg-surface-2"}`} onClick={onSelect}>
@@ -1116,7 +1144,16 @@ function ZoneRow({
         {" · "}
         {zone.has_seats === false ? "Solo paradas" : zone.capacity != null ? `${zone.capacity} asientos` : "sin límite"}
         {zone.minor_price != null && (
-          <span className="text-amber-400 font-semibold"> · Menor: {formatCOP(zone.minor_price)}</span>
+          <span className="text-amber-400 font-semibold">
+            {" · "}Menor: {minorPricing.isPresale ? (
+              <span>
+                <span className="line-through mr-1 text-[10px] text-muted">{formatCOP(minorPricing.fullPrice)}</span>
+                <strong className="text-amber-300">{formatCOP(minorPricing.currentPrice)}</strong>
+              </span>
+            ) : (
+              formatCOP(minorPricing.currentPrice)
+            )}
+          </span>
         )}
         {childCount != null && childCount > 0 && ` · ${childCount} subzonas`}
       </p>

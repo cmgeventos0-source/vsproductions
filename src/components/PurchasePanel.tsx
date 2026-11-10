@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Event, Seat, Zone } from "@/lib/types";
 import { formatCOP, formatDateTime, formatDate, formatTime } from "@/lib/format";
-import { getZonePricing, getZoneMinorPrice } from "@/lib/pricing";
+import { getZonePricing, getZoneMinorPrice, getZoneMinorPricing } from "@/lib/pricing";
 import { addToCart } from "@/app/actions";
 import { SafeDateRender } from "@/components/SafeDateRender";
 
@@ -673,9 +673,23 @@ export default function PurchasePanel({
               <div className="flex items-center justify-between pt-2.5 border-t border-white/5">
                 <div>
                   <span className="text-xs sm:text-sm font-bold text-white block">👶 Boletas Menor de Edad</span>
-                  <span className="text-[11px] text-amber-300 font-semibold">
-                    {formatCOP(getZoneMinorPrice(activeZone))} c/u · Máx. {maxMinors} ({maxMinorsPerAdult}/adulto)
-                  </span>
+                  <div className="text-[11px] font-semibold flex items-center gap-1.5 flex-wrap">
+                    {(() => {
+                      const mPricing = getZoneMinorPricing(activeZone);
+                      return (
+                        <>
+                          {mPricing.isPresale && (
+                            <span className="line-through text-muted text-[10px]">{formatCOP(mPricing.fullPrice)}</span>
+                          )}
+                          <span className="text-amber-300 font-bold">{formatCOP(mPricing.currentPrice)} c/u</span>
+                          {mPricing.isPresale && (
+                            <span className="rounded bg-pink-600/90 px-1 py-0.2 text-[8px] font-black uppercase text-white">PREVENTA</span>
+                          )}
+                          <span className="text-muted text-[10px]">· Máx. {maxMinors} ({maxMinorsPerAdult}/adulto)</span>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button

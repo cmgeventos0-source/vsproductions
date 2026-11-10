@@ -7,9 +7,10 @@ ALTER TABLE public.events
 ADD COLUMN IF NOT EXISTS allows_minors boolean DEFAULT false,
 ADD COLUMN IF NOT EXISTS max_minors_per_adult int DEFAULT 2;
 
--- 2. Precio de boleta de menor por zona/localidad
+-- 2. Precios de boleta de menor por zona/localidad (Full y Preventa)
 ALTER TABLE public.zones 
-ADD COLUMN IF NOT EXISTS minor_price numeric(12,2) DEFAULT null;
+ADD COLUMN IF NOT EXISTS minor_price numeric(12,2) DEFAULT null,
+ADD COLUMN IF NOT EXISTS minor_presale_price numeric(12,2) DEFAULT null;
 
 -- 3. Tipo de boleta y vínculo con el adulto en tickets
 ALTER TABLE public.tickets 

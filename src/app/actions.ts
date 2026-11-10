@@ -50,7 +50,7 @@ export async function createOrder(formData: FormData) {
   if (zoneId) {
     let { data: zData, error: zErr } = await supabase
       .from("zones")
-      .select("id, price, minor_price, presale_price, presale_end_at, capacity, sold_count, function_id")
+      .select("id, price, minor_price, minor_presale_price, presale_price, presale_end_at, capacity, sold_count, function_id")
       .eq("id", zoneId)
       .single();
 
@@ -744,7 +744,8 @@ export async function addZoneAction(
   saleType?: "individual" | "full_zone",
   isLocked?: boolean,
   hasSeats?: boolean,
-  minorPrice?: number | null
+  minorPrice?: number | null,
+  minorPresalePrice?: number | null
 ) {
   await requireAdmin();
   const supabase = createAdminClient();
@@ -769,6 +770,9 @@ export async function addZoneAction(
   if (minorPrice !== undefined && minorPrice !== null) {
     payload.minor_price = minorPrice;
   }
+  if (minorPresalePrice !== undefined && minorPresalePrice !== null) {
+    payload.minor_presale_price = minorPresalePrice;
+  }
   if (presalePrice !== undefined && presalePrice !== null) {
     payload.presale_price = presalePrice;
   }
@@ -782,8 +786,9 @@ export async function addZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("minor_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("minor_price") || error.message?.includes("minor_presale_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
     delete payload.minor_price;
+    delete payload.minor_presale_price;
     delete payload.is_locked;
     delete payload.has_seats;
     delete payload.presale_price;
@@ -804,6 +809,7 @@ export async function updateZoneAction(
     name?: string;
     price?: number;
     minor_price?: number | null;
+    minor_presale_price?: number | null;
     presale_price?: number | null;
     presale_end_at?: string | null;
     sale_type?: "individual" | "full_zone";
@@ -820,6 +826,7 @@ export async function updateZoneAction(
   if (data.name !== undefined) updateData.name = data.name;
   if (data.price !== undefined) updateData.price = data.price;
   if (data.minor_price !== undefined) updateData.minor_price = data.minor_price;
+  if (data.minor_presale_price !== undefined) updateData.minor_presale_price = data.minor_presale_price;
   if (data.presale_price !== undefined) updateData.presale_price = data.presale_price;
   if (data.presale_end_at !== undefined) updateData.presale_end_at = data.presale_end_at;
   if (data.sale_type !== undefined) updateData.sale_type = data.sale_type;
@@ -835,8 +842,9 @@ export async function updateZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("minor_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("minor_price") || error.message?.includes("minor_presale_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
     delete updateData.minor_price;
+    delete updateData.minor_presale_price;
     delete updateData.is_locked;
     delete updateData.has_seats;
     delete updateData.presale_price;

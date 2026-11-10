@@ -40,12 +40,68 @@ export function getZonePricing(zone: Partial<Zone> & { price: number }): ZonePri
   };
 }
 
-export function getZoneMinorPrice(zone?: Partial<Zone> | null): number {
-  if (!zone) return 0;
-  if (zone.minor_price !== undefined && zone.minor_price !== null && !isNaN(Number(zone.minor_price)) && Number(zone.minor_price) >= 0) {
-    return Number(zone.minor_price);
+export type ZoneMinorPricingInfo = {
+  currentPrice: number;
+  fullPrice: number;
+  presalePrice: number | null;
+  isPresale: boolean;
+  presaleEndAt: string | null;
+  savings: number;
+};
+
+export function getZoneMinorPricing(zone?: Partial<Zone> | null): ZoneMinorPricingInfo {
+  if (!zone) {
+    return {
+      currentPrice: 0,
+      fullPrice: 0,
+      presalePrice: null,
+      isPresale: false,
+      presaleEndAt: null,
+      savings: 0,
+    };
   }
-  return getZonePricing(zone as any).currentPrice;
+
+  const adultPricing = getZonePricing(zone as any);
+  const fullPrice =
+    zone.minor_price !== undefined && zone.minor_price !== null && !isNaN(Number(zone.minor_price)) && Number(zone.minor_price) >= 0
+      ? Number(zone.minor_price)
+      : adultPricing.currentPrice;
+
+  const presalePrice =
+    zone.minor_presale_price !== undefined && zone.minor_presale_price !== null && !isNaN(Number(zone.minor_presale_price))
+      ? Number(zone.minor_presale_price)
+      : null;
+
+  const presaleEndAt = zone.presale_end_at ?? null;
+
+  let isPresale = false;
+  if (presalePrice !== null && presalePrice > 0 && presalePrice < fullPrice) {
+    if (!presaleEndAt || presaleEndAt.trim() === "") {
+      isPresale = true;
+    } else {
+      const now = new Date();
+      const endDate = new Date(presaleEndAt);
+      if (!isNaN(endDate.getTime()) && now <= endDate) {
+        isPresale = true;
+      }
+    }
+  }
+
+  const currentPrice = isPresale ? presalePrice! : fullPrice;
+  const savings = isPresale ? fullPrice - presalePrice! : 0;
+
+  return {
+    currentPrice,
+    fullPrice,
+    presalePrice,
+    isPresale,
+    presaleEndAt,
+    savings,
+  };
+}
+
+export function getZoneMinorPrice(zone?: Partial<Zone> | null): number {
+  return getZoneMinorPricing(zone).currentPrice;
 }
 
 // Cálculo de precios totalmente configurable desde app_config

@@ -65,7 +65,7 @@ export default async function EventoDetailPage({
   const [catRes, venueRes, funcRes] = await Promise.all([
     event.category_id ? supabase.from("categories").select("id, name, slug, icon").eq("id", event.category_id).maybeSingle() : Promise.resolve({ data: null }),
     event.venue_id ? supabase.from("venues").select("id, name, city, address, map_url").eq("id", event.venue_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("event_functions").select("id, event_id, name, starts_at, doors_open_at, sales_start_at, sales_end_at, is_active, zones(id, name, price, minor_price, color, parent_id, map_coords)").eq("event_id", event.id),
+    supabase.from("event_functions").select("id, event_id, name, starts_at, doors_open_at, sales_start_at, sales_end_at, is_active, zones(id, name, price, minor_price, minor_presale_price, presale_price, presale_end_at, color, parent_id, map_coords)").eq("event_id", event.id),
   ]);
 
   (event as any).category = catRes.data || null;
