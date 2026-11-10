@@ -13,6 +13,7 @@ type PendingPayment = {
   customerName: string;
   customerPhone: string;
   event: string;
+  eventId?: string | null;
   amount: number;
   paymentMethod: string;
   receiptUrl: string;
@@ -84,11 +85,11 @@ const quickActions = [
 ];
 
 function getOrderEventName(order: any) {
-  return order.order_items?.[0]?.event_functions?.event?.name || "Sin evento";
+  return order.event_name || order.order_items?.[0]?.event_functions?.event?.name || "Sin evento";
 }
 
 function getOrderEventId(order: any) {
-  return order.order_items?.[0]?.event_functions?.event?.id || "sin-evento";
+  return order.event_id || order.order_items?.[0]?.event_functions?.event?.id || "sin-evento";
 }
 
 function getOrderTicketCount(order: any) {
@@ -144,6 +145,7 @@ export default function AdminPage() {
             customerName: o.customer_name || "N/A",
             customerPhone: "N/A",
             event: ev?.name || fn?.name || "Varios Eventos",
+            eventId: ev?.id || fn?.event_id || null,
             amount: o.total,
             paymentMethod: o.payment_method || "N/A",
             receiptUrl: o.receipt_url || "",
@@ -214,7 +216,7 @@ export default function AdminPage() {
       
       const { data: allPaidOrders } = await supabase
         .from("orders")
-        .select("id, customer_name, total, status, created_at")
+        .select("id, customer_name, payment_method, total, status, created_at")
         .in("status", ["paid", "cancelled"])
         .order("created_at", { ascending: false });
       
@@ -247,6 +249,16 @@ export default function AdminPage() {
 
         const enriched = allPaidOrders.map((o: any) => {
           const items = (itemsRes.data || []).filter((oi: any) => oi.order_id === o.id);
+          const firstFn = items.length ? funcMap.get(items[0]?.function_id) : null;
+          const firstEv = firstFn ? eventMap.get(firstFn.event_id) : null;
+          const enrichedItems = items.map((oi: any) => {
+            const fn = funcMap.get(oi.function_id) || null;
+            const ev = fn ? eventMap.get(fn.event_id) : null;
+            return {
+              ...oi,
+              event_functions: fn ? { ...fn, event: ev } : null,
+            };
+          });
           const tickets = (ticketsByOrder.get(o.id) || []).map((t: any) => {
             const fn = funcMap.get(items.find((oi: any) => oi.function_id)?.function_id) || null;
             const ev = fn ? eventMap.get(fn.event_id) : null;
@@ -256,7 +268,13 @@ export default function AdminPage() {
               zone: zoneMap.get(items.find((oi: any) => oi.zone_id)?.zone_id) || null,
             };
           });
-          return { ...o, order_items: items, tickets };
+          return {
+            ...o,
+            order_items: enrichedItems,
+            tickets,
+            event_id: firstEv?.id || firstFn?.event_id || null,
+            event_name: firstEv?.name || "Sin evento",
+          };
         });
         setAllOrders(enriched);
       }
@@ -320,12 +338,36 @@ export default function AdminPage() {
   }
 
   const reportEvents = events.map((event) => ({ id: event.id, name: event.name }));
+  const selectedEvent = events.find((e) => e.id === reportEventId);
+
+  // Filtrado de órdenes según evento seleccionado
   const filteredReportOrders = allOrders.filter((order) => {
     if (reportEventId === "all") return true;
     return getOrderEventId(order) === reportEventId;
   });
   const paidReportOrders = filteredReportOrders.filter((order) => order.status === "paid");
   const cancelledReportOrders = filteredReportOrders.filter((order) => order.status === "cancelled");
+
+  // Métodos de pago segregados para el evento
+  const paymentMethodsSummary = paidReportOrders.reduce((acc: Record<string, { count: number; total: number }>, order: any) => {
+    const method = order.payment_method || "Otro";
+    if (!acc[method]) acc[method] = { count: 0, total: 0 };
+    acc[method].count += 1;
+    acc[method].total += Number(order.total || 0);
+    return acc;
+  }, {});
+
+  // Filtrado de transferencias pendientes según evento seleccionado
+  const filteredPendingPayments = pendingPayments.filter((payment) => {
+    if (reportEventId === "all") return true;
+    return payment.eventId === reportEventId;
+  });
+
+  // Métricas dinámicas para las tarjetas superiores según el filtro de evento
+  const currentSales = reportEventId === "all" ? metrics.totalSales : paidReportOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+  const currentTickets = reportEventId === "all" ? metrics.totalTickets : paidReportOrders.reduce((sum, order) => sum + getOrderTicketCount(order), 0);
+  const currentPendingCount = filteredPendingPayments.length;
+
   const reportTotals = {
     sales: paidReportOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0),
     tickets: paidReportOrders.reduce((sum, order) => sum + getOrderTicketCount(order), 0),
@@ -404,43 +446,113 @@ export default function AdminPage() {
 
         <main className="min-w-0 space-y-6">
           <div className="rounded-3xl border border-border bg-gradient-to-br from-surface via-surface to-purple-950/20 p-6 shadow-2xl shadow-black/10">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-300">Boletería Colombia</p>
                 <h2 className="mt-2 text-3xl font-black">Gestión administrativa</h2>
                 <p className="mt-1 text-sm text-muted">Control operativo de pagos, eventos, boletería y métricas.</p>
               </div>
-              <a href="/admin/eventos/nuevo" className="btn-primary rounded-2xl px-4 py-2.5 text-xs font-black">
-                + Crear evento
-              </a>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Selector de Evento Global para filtrar cuentas y métricas */}
+                <div className="flex items-center gap-2 rounded-2xl border border-purple-500/30 bg-surface-2 px-3 py-1.5 shadow-inner">
+                  <span className="text-base">🎟️</span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Filtrar por Evento:</span>
+                    <select
+                      value={reportEventId}
+                      onChange={(e) => setReportEventId(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+                    >
+                      <option value="all" className="bg-surface text-white">
+                        Todos los Eventos (Consolidado General)
+                      </option>
+                      {reportEvents.map((ev) => (
+                        <option key={ev.id} value={ev.id} className="bg-surface text-white">
+                          {ev.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <a href="/admin/eventos/nuevo" className="btn-primary rounded-2xl px-4 py-2.5 text-xs font-black">
+                  + Crear evento
+                </a>
+              </div>
             </div>
           </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="card p-6">
-          <span className="text-xs text-muted block uppercase tracking-wider font-semibold">Ventas Totales</span>
-          <span className="mt-2 block text-3xl font-black text-white">{formatCOP(metrics.totalSales)}</span>
+        <div className="card p-6 relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted block uppercase tracking-wider font-semibold">Ventas Totales</span>
+            {reportEventId !== "all" && (
+              <span className="rounded-full bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 text-[10px] font-bold text-purple-300 truncate max-w-[140px]">
+                {selectedEvent?.name}
+              </span>
+            )}
+          </div>
+          <span className="mt-2 block text-3xl font-black text-white">{formatCOP(currentSales)}</span>
+          <span className="text-xs text-muted mt-1 block">
+            {reportEventId === "all" ? "Recaudo acumulado general" : "Recaudo exclusivo de este evento"}
+          </span>
         </div>
-        <div className="card p-6">
-          <span className="text-xs text-muted block uppercase tracking-wider font-semibold">Boletas Vendidas</span>
-          <span className="mt-2 block text-3xl font-black text-white">{metrics.totalTickets} Boletas</span>
+        <div className="card p-6 relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted block uppercase tracking-wider font-semibold">Boletas Vendidas</span>
+            {reportEventId !== "all" && (
+              <span className="rounded-full bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 text-[10px] font-bold text-purple-300 truncate max-w-[140px]">
+                {selectedEvent?.name}
+              </span>
+            )}
+          </div>
+          <span className="mt-2 block text-3xl font-black text-white">{currentTickets} Boletas</span>
+          <span className="text-xs text-muted mt-1 block">
+            {reportEventId === "all" ? "Total entradas en plataforma" : "Entradas vendidas para este evento"}
+          </span>
         </div>
-        <div className="card p-6 border-amber-500/30 bg-amber-500/5">
-          <span className="text-xs text-amber-400 block uppercase tracking-wider font-semibold">Pagos por Validar</span>
-          <span className="mt-2 block text-3xl font-black text-amber-300">{pendingPayments.length} Pendientes</span>
-          <span className="text-xs text-amber-400/80 mt-1 block">Requieren revisión manual</span>
+        <div className="card p-6 border-amber-500/30 bg-amber-500/5 relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-amber-400 block uppercase tracking-wider font-semibold">Pagos por Validar</span>
+            {reportEventId !== "all" && (
+              <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-300 truncate max-w-[140px]">
+                {selectedEvent?.name}
+              </span>
+            )}
+          </div>
+          <span className="mt-2 block text-3xl font-black text-amber-300">{currentPendingCount} Pendientes</span>
+          <span className="text-xs text-amber-400/80 mt-1 block">
+            {reportEventId === "all" ? "Requieren revisión manual" : "Pendientes de este evento"}
+          </span>
         </div>
       </div>
 
       {activeTab === "payments" ? (
         <div className="card p-6 space-y-6">
-          <h2 className="text-xl font-bold border-b border-border pb-4">
-            Aprobación Manual de Transferencias
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+            <div>
+              <h2 className="text-xl font-bold">
+                Aprobación Manual de Transferencias
+              </h2>
+              <p className="text-xs text-muted mt-0.5">
+                {reportEventId === "all"
+                  ? "Mostrando transferencias de todos los eventos"
+                  : `Filtrado para el evento: ${selectedEvent?.name || "Seleccionado"}`}
+              </p>
+            </div>
+            {reportEventId !== "all" && (
+              <button
+                onClick={() => setReportEventId("all")}
+                className="text-xs text-purple-400 hover:text-purple-300 underline font-semibold"
+              >
+                Ver todos los eventos
+              </button>
+            )}
+          </div>
 
           {loading ? (
             <p className="py-8 text-center text-muted text-sm">Cargando pagos pendientes...</p>
-          ) : pendingPayments.length > 0 ? (
+          ) : filteredPendingPayments.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-border text-muted uppercase">
@@ -454,7 +566,7 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {pendingPayments.map((p) => (
+                  {filteredPendingPayments.map((p) => (
                     <tr key={p.id} className="hover:bg-surface-2/50">
                       <td className="p-3">
                         <span className="font-mono font-bold text-white block">{p.orderCode}</span>
@@ -543,49 +655,150 @@ export default function AdminPage() {
         </div>
       ) : activeTab === "reports" ? (
         <div className="card p-6 space-y-6">
-          <h2 className="text-xl font-bold border-b border-border pb-4">Reporte de Ventas</h2>
-          <div className="grid gap-4 sm:grid-cols-3 mb-4">
-            <div className="rounded-xl bg-surface-2 p-4">
-              <span className="text-xs text-muted block">Ingresos Totales</span>
-              <span className="text-xl font-black text-emerald-400">{formatCOP(metrics.totalSales)}</span>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+            <div>
+              <h2 className="text-xl font-bold">Reportes y Cuentas por Evento</h2>
+              <p className="text-xs text-muted mt-0.5">
+                {reportEventId === "all"
+                  ? "Consolidado financiero general de la plataforma."
+                  : `Cuentas y auditoría de ventas exclusivas para: ${selectedEvent?.name || "Evento"}`}
+              </p>
             </div>
-            <div className="rounded-xl bg-surface-2 p-4">
-              <span className="text-xs text-muted block">Órdenes Pagadas</span>
-              <span className="text-xl font-black text-white">{metrics.totalOrders}</span>
-            </div>
-            <div className="rounded-xl bg-surface-2 p-4">
-              <span className="text-xs text-muted block">Boletas Emitidas</span>
-              <span className="text-xl font-black text-white">{metrics.totalTickets}</span>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted font-semibold">Evento:</label>
+              <select
+                value={reportEventId}
+                onChange={(e) => setReportEventId(e.target.value)}
+                className="rounded-xl border border-border bg-surface-2 px-3 py-1.5 text-xs font-bold text-white focus:border-purple-500 focus:outline-none"
+              >
+                <option value="all">Todos los Eventos (Consolidado)</option>
+                {reportEvents.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-          {allOrders.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-border text-muted uppercase">
-                  <tr>
-                    <th className="p-3">Fecha</th>
-                    <th className="p-3">Cliente</th>
-                    <th className="p-3">Evento</th>
-                    <th className="p-3">Método</th>
-                    <th className="p-3 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {allOrders.map((o: any) => (
-                    <tr key={o.id} className="hover:bg-surface-2/50">
-                      <td className="p-3 text-muted">{new Date(o.created_at).toLocaleDateString("es-CO")}</td>
-                      <td className="p-3 text-white">{o.customer_name}</td>
-                      <td className="p-3">{o.order_items?.[0]?.event_functions?.event?.name || "—"}</td>
-                      <td className="p-3">{o.payment_method}</td>
-                      <td className="p-3 text-right font-bold text-emerald-400">{formatCOP(o.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+          {/* Tarjetas de Balance Contable del Evento */}
+          <div className="grid gap-4 sm:grid-cols-4">
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+              <span className="text-[11px] uppercase font-bold text-emerald-400 block tracking-wider">Recaudo Neto</span>
+              <span className="text-2xl font-black text-white mt-1 block">{formatCOP(reportTotals.sales)}</span>
+              <span className="text-[10px] text-emerald-300/80 mt-1 block">Ventas cobradas y aprobadas</span>
             </div>
-          ) : (
-            <p className="py-8 text-center text-muted text-sm">Aún no hay ventas registradas.</p>
+            <div className="rounded-2xl border border-white/5 bg-surface-2 p-4">
+              <span className="text-[11px] uppercase font-bold text-muted block tracking-wider">Órdenes Pagadas</span>
+              <span className="text-2xl font-black text-white mt-1 block">{reportTotals.orders}</span>
+              <span className="text-[10px] text-muted mt-1 block">Transacciones exitosas</span>
+            </div>
+            <div className="rounded-2xl border border-white/5 bg-surface-2 p-4">
+              <span className="text-[11px] uppercase font-bold text-muted block tracking-wider">Boletas Emitidas</span>
+              <span className="text-2xl font-black text-white mt-1 block">{reportTotals.tickets}</span>
+              <span className="text-[10px] text-muted mt-1 block">Entradas generadas</span>
+            </div>
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+              <span className="text-[11px] uppercase font-bold text-red-400 block tracking-wider">Canceladas / Anuladas</span>
+              <span className="text-2xl font-black text-red-300 mt-1 block">{reportTotals.cancelled}</span>
+              <span className="text-[10px] text-red-400/80 mt-1 block">Devoluciones o anulaciones</span>
+            </div>
+          </div>
+
+          {/* Desglose por Método de Pago para el Evento */}
+          {Object.keys(paymentMethodsSummary).length > 0 && (
+            <div className="rounded-2xl border border-white/5 bg-surface-2/40 p-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">
+                Desglose por Método de Pago ({reportEventId === "all" ? "Todos los eventos" : selectedEvent?.name})
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {Object.entries(paymentMethodsSummary).map(([method, data]) => (
+                  <div key={method} className="flex items-center justify-between rounded-xl border border-white/5 bg-surface p-3">
+                    <div>
+                      <span className="text-xs font-bold uppercase text-purple-300">{method}</span>
+                      <span className="block text-[11px] text-muted">{data.count} {data.count === 1 ? 'orden' : 'órdenes'}</span>
+                    </div>
+                    <span className="text-sm font-black text-white">{formatCOP(data.total)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
+
+          {/* Tabla de órdenes filtradas */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-white">Detalle de Órdenes ({filteredReportOrders.length})</h3>
+            </div>
+            {filteredReportOrders.length > 0 ? (
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-border bg-surface-2/60 text-muted uppercase">
+                    <tr>
+                      <th className="p-3">Fecha</th>
+                      <th className="p-3">Cliente</th>
+                      <th className="p-3">Evento</th>
+                      <th className="p-3">Boletas</th>
+                      <th className="p-3">Método</th>
+                      <th className="p-3">Estado</th>
+                      <th className="p-3 text-right">Total</th>
+                      <th className="p-3 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredReportOrders.map((o: any) => {
+                      const tCount = getOrderTicketCount(o);
+                      return (
+                        <tr key={o.id} className="hover:bg-surface-2/50 transition-colors">
+                          <td className="p-3 text-muted">{new Date(o.created_at).toLocaleDateString("es-CO")}</td>
+                          <td className="p-3">
+                            <span className="text-white font-medium block">{o.customer_name}</span>
+                            <span className="text-[10px] font-mono text-muted">{o.id.substring(0, 8).toUpperCase()}</span>
+                          </td>
+                          <td className="p-3 font-semibold text-purple-300 max-w-[160px] truncate">
+                            {getOrderEventName(o)}
+                          </td>
+                          <td className="p-3 text-white font-bold">{tCount}</td>
+                          <td className="p-3">
+                            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-muted">
+                              {o.payment_method || "—"}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              o.status === "paid"
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : o.status === "cancelled"
+                                ? "bg-red-500/20 text-red-400"
+                                : "bg-amber-500/20 text-amber-300"
+                            }`}>
+                              {o.status === "paid" ? "Pagado" : o.status === "cancelled" ? "Cancelado" : o.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-bold text-emerald-400">{formatCOP(o.total)}</td>
+                          <td className="p-3 text-right">
+                            {o.status === "paid" && (
+                              <button
+                                onClick={() => cancelSale(o.id)}
+                                disabled={cancellingOrderId === o.id}
+                                className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-400 hover:bg-red-500/20 disabled:opacity-50"
+                              >
+                                {cancellingOrderId === o.id ? "Anulando..." : "Anular"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="py-8 text-center text-muted text-sm border border-dashed border-border rounded-xl">
+                No hay ventas u órdenes registradas para este filtro.
+              </p>
+            )}
+          </div>
         </div>
       ) : activeTab === "payment_methods" ? (
         <PaymentMethodsManager />

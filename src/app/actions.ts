@@ -60,7 +60,7 @@ export async function createOrder(formData: FormData) {
         .select("id, price, presale_price, presale_end_at, capacity, sold_count, function_id")
         .eq("id", zoneId)
         .single();
-      zData = fallback.data;
+      zData = fallback.data ? { ...fallback.data, minor_price: null, minor_presale_price: null } : null;
     }
     zone = zData;
   }
