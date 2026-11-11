@@ -628,6 +628,16 @@ export async function getAppConfig(key: string) {
 export async function generateTicketsForOrder(orderId: string) {
   const supabase = createAdminClient();
 
+  // Protección de idempotencia: evitar duplicar boletas si la función se llama varias veces (ej. webhook + redirección)
+  const { count: existingCount } = await supabase
+    .from("tickets")
+    .select("id", { count: "exact", head: true })
+    .eq("order_id", orderId);
+
+  if (existingCount && existingCount > 0) {
+    return;
+  }
+
   const { data: items } = await supabase.from("order_items").select("*").eq("order_id", orderId);
   if (!items || items.length === 0) return;
 
