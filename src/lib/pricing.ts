@@ -27,8 +27,28 @@ export function getZonePricing(zone: Partial<Zone> & { price: number }): ZonePri
     }
   }
 
-  const currentPrice = isPresale ? presalePrice! : fullPrice;
-  const savings = isPresale ? fullPrice - presalePrice! : 0;
+  let currentPrice = isPresale ? presalePrice! : fullPrice;
+
+  // Si la promoción está activa y tiene precio promocional para 1 boleta individual
+  const isPromoActive = zone.is_promo_active ?? false;
+  const promoEndAt = zone.promo_end_at ?? null;
+  let isPromoExpired = false;
+  if (promoEndAt && promoEndAt.trim() !== "") {
+    const end = new Date(promoEndAt);
+    if (!isNaN(end.getTime()) && new Date() > end) {
+      isPromoExpired = true;
+    }
+  }
+
+  const promoSingle = zone.promo_single_price != null && !isNaN(Number(zone.promo_single_price)) && Number(zone.promo_single_price) > 0
+    ? Number(zone.promo_single_price)
+    : null;
+
+  if (isPromoActive && !isPromoExpired && promoSingle !== null) {
+    currentPrice = promoSingle;
+  }
+
+  const savings = fullPrice > currentPrice ? fullPrice - currentPrice : 0;
 
   return {
     currentPrice,

@@ -394,8 +394,13 @@ export default function PurchasePanel({
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        {pricing.isPresale && <p className="text-[9px] text-muted line-through">{formatCOP(pricing.fullPrice)}</p>}
-                        <p className="font-black text-accent-2">{isLocked ? "🔒 Bloqueado" : formatCOP(pricing.currentPrice)}</p>
+                        {pricing.savings > 0 && <p className="text-[9px] text-muted line-through">{formatCOP(pricing.fullPrice)}</p>}
+                        <p className="font-black text-amber-400 text-sm sm:text-base leading-tight">
+                          {isLocked ? "🔒 Bloqueado" : formatCOP(pricing.currentPrice)}
+                        </p>
+                        {pricing.savings > 0 && (
+                          <p className="text-[9px] text-emerald-400 font-bold leading-none mt-0.5">-{formatCOP(pricing.savings)}</p>
+                        )}
                       </div>
                     </button>
                   );
@@ -614,12 +619,12 @@ export default function PurchasePanel({
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        {pricing.isPresale && (
+                        {pricing.savings > 0 && (
                           <p className="text-[10px] text-muted line-through leading-none">{formatCOP(pricing.fullPrice)}</p>
                         )}
                         <p className="font-black text-amber-400 text-sm sm:text-base leading-tight">{isLocked ? "🔒 Bloqueado" : formatCOP(pricing.currentPrice)}</p>
-                        {pricing.isPresale && pricing.savings > 0 && (
-                          <p className="text-[9px] text-green-400 font-bold leading-none mt-0.5">-{formatCOP(pricing.savings)}</p>
+                        {pricing.savings > 0 && (
+                          <p className="text-[9px] text-emerald-400 font-bold leading-none mt-0.5">-{formatCOP(pricing.savings)}</p>
                         )}
                       </div>
                     </div>
