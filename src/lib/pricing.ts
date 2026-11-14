@@ -42,50 +42,82 @@ export function getZonePricing(zone: Partial<Zone> & { price: number }): ZonePri
 
 export type ZonePackagePromoInfo = {
   hasPromo: boolean;
+  isPromoActive: boolean;
   packageQty: number;
   packagePrice: number;
+  singlePromoPrice: number | null;
   packageName: string;
   regularPriceForQty: number;
   savings: number;
   unitPriceEquivalent: number;
+  promoEndAt: string | null;
+  isExpired: boolean;
 };
 
 export function getZonePackagePromo(zone?: Partial<Zone> | null): ZonePackagePromoInfo {
   if (!zone) {
     return {
       hasPromo: false,
+      isPromoActive: false,
       packageQty: 0,
       packagePrice: 0,
+      singlePromoPrice: null,
       packageName: "",
       regularPriceForQty: 0,
       savings: 0,
       unitPriceEquivalent: 0,
+      promoEndAt: null,
+      isExpired: false,
     };
+  }
+
+  const isExplicitlyActive = zone.is_promo_active ?? true;
+  const promoEndAt = zone.promo_end_at ?? null;
+
+  let isExpired = false;
+  if (promoEndAt && promoEndAt.trim() !== "") {
+    const end = new Date(promoEndAt);
+    if (!isNaN(end.getTime()) && new Date() > end) {
+      isExpired = true;
+    }
   }
 
   const pkgQty = Number(zone.promo_package_qty);
   const pkgPrice = Number(zone.promo_package_price);
-  const standardPricing = getZonePricing(zone as any);
-  const regularPriceForQty = standardPricing.currentPrice * (pkgQty || 1);
+  const singlePrice = zone.promo_single_price != null && !isNaN(Number(zone.promo_single_price)) && Number(zone.promo_single_price) > 0
+    ? Number(zone.promo_single_price)
+    : null;
 
-  const hasPromo =
+  const standardPricing = getZonePricing(zone as any);
+  const basePriceToCompare = singlePrice ?? standardPricing.currentPrice;
+  const regularPriceForQty = basePriceToCompare * (pkgQty || 1);
+
+  const hasPackage =
     !isNaN(pkgQty) &&
     pkgQty >= 2 &&
     !isNaN(pkgPrice) &&
-    pkgPrice > 0 &&
-    pkgPrice < regularPriceForQty;
+    pkgPrice > 0;
 
-  const savings = hasPromo ? Math.max(0, regularPriceForQty - pkgPrice) : 0;
-  const unitPriceEquivalent = hasPromo ? Math.round(pkgPrice / pkgQty) : standardPricing.currentPrice;
+  const hasPromo =
+    isExplicitlyActive &&
+    !isExpired &&
+    (hasPackage || singlePrice !== null);
+
+  const savings = hasPackage && pkgPrice < regularPriceForQty ? Math.max(0, regularPriceForQty - pkgPrice) : 0;
+  const unitPriceEquivalent = hasPackage ? Math.round(pkgPrice / pkgQty) : basePriceToCompare;
 
   return {
     hasPromo,
-    packageQty: hasPromo ? pkgQty : 0,
-    packagePrice: hasPromo ? pkgPrice : 0,
-    packageName: (zone.promo_package_name && zone.promo_package_name.trim()) || `Combo x${pkgQty}`,
+    isPromoActive: isExplicitlyActive,
+    packageQty: hasPackage ? pkgQty : 0,
+    packagePrice: hasPackage ? pkgPrice : 0,
+    singlePromoPrice: singlePrice,
+    packageName: (zone.promo_package_name && zone.promo_package_name.trim()) || (hasPackage ? `Combo x${pkgQty}` : "Promoción Especial"),
     regularPriceForQty,
     savings,
     unitPriceEquivalent,
+    promoEndAt,
+    isExpired,
   };
 }
 

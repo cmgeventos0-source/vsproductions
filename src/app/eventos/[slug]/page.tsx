@@ -65,7 +65,7 @@ export default async function EventoDetailPage({
   const [catRes, venueRes, funcRes] = await Promise.all([
     event.category_id ? supabase.from("categories").select("id, name, slug, icon").eq("id", event.category_id).maybeSingle() : Promise.resolve({ data: null }),
     event.venue_id ? supabase.from("venues").select("id, name, city, address, map_url").eq("id", event.venue_id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("event_functions").select("id, event_id, name, starts_at, doors_open_at, sales_start_at, sales_end_at, is_active, zones(id, name, price, minor_price, minor_presale_price, presale_price, presale_end_at, promo_package_qty, promo_package_price, promo_package_name, color, parent_id, map_coords)").eq("event_id", event.id),
+    supabase.from("event_functions").select("id, event_id, name, starts_at, doors_open_at, sales_start_at, sales_end_at, is_active, zones(id, name, price, minor_price, minor_presale_price, presale_price, presale_end_at, is_promo_active, promo_single_price, promo_package_qty, promo_package_price, promo_package_name, promo_end_at, color, parent_id, map_coords)").eq("event_id", event.id),
   ]);
 
   (event as any).category = catRes.data || null;
@@ -109,10 +109,16 @@ export default async function EventoDetailPage({
 
   // Detectar zonas con promociones activas para el banner
   const promoZones = (eventData.functions ?? []).flatMap((fn: any) => fn.zones ?? []).filter((z: any) => {
+    const isPromoActive = z.is_promo_active ?? true;
+    if (!isPromoActive) return false;
+    if (z.promo_end_at && new Date() > new Date(z.promo_end_at)) return false;
+
     const pkgQty = Number(z.promo_package_qty);
     const pkgPrice = Number(z.promo_package_price);
-    const standardPrice = Number(z.price);
-    return !isNaN(pkgQty) && pkgQty >= 2 && !isNaN(pkgPrice) && pkgPrice > 0 && pkgPrice < (standardPrice * pkgQty);
+    const singlePrice = Number(z.promo_single_price);
+    const hasPackage = !isNaN(pkgQty) && pkgQty >= 2 && !isNaN(pkgPrice) && pkgPrice > 0;
+    const hasSinglePromo = !isNaN(singlePrice) && singlePrice > 0;
+    return hasPackage || hasSinglePromo;
   });
   const firstPromo = promoZones[0] ?? null;
 
@@ -174,8 +180,8 @@ export default async function EventoDetailPage({
 
               {/* Banner de Promoción Activa */}
               {firstPromo && (
-                <div className="mt-3 flex items-center gap-3 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-amber-500/10 p-3.5 shadow-lg shadow-amber-950/20 backdrop-blur-md animate-pulse">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/25 text-2xl">
+                <div className="mt-3 flex items-center gap-3 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-amber-500/10 p-3.5 shadow-lg shadow-amber-950/20 backdrop-blur-md">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/25 text-2xl animate-bounce">
                     🔥
                   </span>
                   <div className="min-w-0 flex-1">
@@ -184,15 +190,26 @@ export default async function EventoDetailPage({
                         ¡Promoción Activa!
                       </span>
                       <span className="text-xs font-bold text-amber-300">
-                        {firstPromo.promo_package_name || `Combo Especial x${firstPromo.promo_package_qty}`}
+                        {firstPromo.promo_package_name || (firstPromo.promo_package_qty ? `Combo x${firstPromo.promo_package_qty}` : "Tarifa Promocional")}
                       </span>
+                      {firstPromo.promo_end_at && (
+                        <span className="text-[10px] text-red-300 font-semibold bg-red-500/20 px-2 py-0.5 rounded-full">
+                          ⏰ Finaliza: {new Date(firstPromo.promo_end_at).toLocaleDateString("es-CO", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-white/90 mt-0.5 font-medium">
-                      Lleva <strong>{firstPromo.promo_package_qty} boletas</strong> en <strong>{firstPromo.name}</strong> por solo{" "}
-                      <strong className="text-amber-300 text-sm">${Number(firstPromo.promo_package_price).toLocaleString("es-CO")}</strong>{" "}
-                      <span className="text-emerald-400 font-bold">
-                        (Ahorras ${(Number(firstPromo.price) * Number(firstPromo.promo_package_qty) - Number(firstPromo.promo_package_price)).toLocaleString("es-CO")})
-                      </span>
+                    <p className="text-xs text-white/90 mt-1 font-medium">
+                      {firstPromo.promo_single_price && Number(firstPromo.promo_single_price) > 0 && (
+                        <span className="mr-3">
+                          1 Boleta a solo <strong className="text-emerald-400 font-bold">${Number(firstPromo.promo_single_price).toLocaleString("es-CO")}</strong>
+                        </span>
+                      )}
+                      {firstPromo.promo_package_qty && Number(firstPromo.promo_package_price) > 0 && (
+                        <span>
+                          Combo de <strong>{firstPromo.promo_package_qty} boletas</strong> en <strong>{firstPromo.name}</strong> por solo{" "}
+                          <strong className="text-amber-300 text-sm">${Number(firstPromo.promo_package_price).toLocaleString("es-CO")}</strong>
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>

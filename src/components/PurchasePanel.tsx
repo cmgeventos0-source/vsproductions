@@ -752,16 +752,32 @@ export default function PurchasePanel({
                     {promo.packageName}
                   </span>
                 </div>
-                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                  Ahorras {formatCOP(promo.savings)}
-                </span>
+                {promo.savings > 0 && (
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                    Ahorras {formatCOP(promo.savings)}
+                  </span>
+                )}
               </div>
-              <p className="text-[11px] text-white/90 mt-1">
-                Lleva <strong>{promo.packageQty} boletas</strong> por solo{" "}
-                <strong className="text-amber-300">{formatCOP(promo.packagePrice)}</strong>{" "}
-                <span className="text-muted line-through text-[10px]">({formatCOP(promo.regularPriceForQty)})</span>
-              </p>
-              {event.sale_mode === "general" && (
+              <div className="text-[11px] text-white/90 mt-1 space-y-0.5">
+                {promo.singlePromoPrice && (
+                  <p>
+                    1 Boleta en promo: <strong className="text-emerald-400">{formatCOP(promo.singlePromoPrice)}</strong>
+                  </p>
+                )}
+                {promo.packageQty >= 2 && promo.packagePrice > 0 && (
+                  <p>
+                    Combo de <strong>{promo.packageQty} boletas</strong> por solo{" "}
+                    <strong className="text-amber-300">{formatCOP(promo.packagePrice)}</strong>{" "}
+                    <span className="text-muted line-through text-[10px]">({formatCOP(promo.regularPriceForQty)})</span>
+                  </p>
+                )}
+                {promo.promoEndAt && (
+                  <p className="text-[10px] text-red-300 font-semibold pt-0.5">
+                    ⏰ Finaliza: {new Date(promo.promoEndAt).toLocaleDateString("es-CO", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+              </div>
+              {event.sale_mode === "general" && promo.packageQty >= 2 && promo.packagePrice > 0 && (
                 <button
                   type="button"
                   onClick={() => setQty(promo.packageQty)}

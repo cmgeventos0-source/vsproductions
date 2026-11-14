@@ -63,9 +63,12 @@ export type Zone = {
   available?: number;
   is_locked?: boolean;
   has_seats?: boolean;
+  is_promo_active?: boolean;
+  promo_single_price?: number | null;
   promo_package_qty?: number | null;
   promo_package_price?: number | null;
   promo_package_name?: string | null;
+  promo_end_at?: string | null;
 };
 
 

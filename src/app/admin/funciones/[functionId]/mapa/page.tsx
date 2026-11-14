@@ -121,9 +121,12 @@ export default function MapEditorPage() {
   const [newZoneColor, setNewZoneColor] = useState(PALETTE[0]);
   const [newZoneIsLocked, setNewZoneIsLocked] = useState(false);
   const [newZoneHasSeats, setNewZoneHasSeats] = useState(true);
+  const [newZoneIsPromoActive, setNewZoneIsPromoActive] = useState(false);
+  const [newZonePromoSinglePrice, setNewZonePromoSinglePrice] = useState<number | null>(null);
   const [newZonePromoPkgQty, setNewZonePromoPkgQty] = useState<number | null>(null);
   const [newZonePromoPkgPrice, setNewZonePromoPkgPrice] = useState<number | null>(null);
   const [newZonePromoPkgName, setNewZonePromoPkgName] = useState("");
+  const [newZonePromoEndAt, setNewZonePromoEndAt] = useState("");
 
   const [editDetailsModal, setEditDetailsModal] = useState<Zone | null>(null);
   const [editZoneName, setEditZoneName] = useState("");
@@ -137,9 +140,12 @@ export default function MapEditorPage() {
   const [editZoneColor, setEditZoneColor] = useState(PALETTE[0]);
   const [editZoneIsLocked, setEditZoneIsLocked] = useState(false);
   const [editZoneHasSeats, setEditZoneHasSeats] = useState(true);
+  const [editZoneIsPromoActive, setEditZoneIsPromoActive] = useState(false);
+  const [editZonePromoSinglePrice, setEditZonePromoSinglePrice] = useState<number | null>(null);
   const [editZonePromoPkgQty, setEditZonePromoPkgQty] = useState<number | null>(null);
   const [editZonePromoPkgPrice, setEditZonePromoPkgPrice] = useState<number | null>(null);
   const [editZonePromoPkgName, setEditZonePromoPkgName] = useState("");
+  const [editZonePromoEndAt, setEditZonePromoEndAt] = useState("");
 
   useEffect(() => {
     if (!functionId) return;
@@ -383,6 +389,12 @@ export default function MapEditorPage() {
         if (!isNaN(d.getTime())) presaleEndIso = d.toISOString();
       }
 
+      let promoEndIso: string | null = null;
+      if (newZonePromoEndAt && newZonePromoEndAt.trim() !== "") {
+        const d = new Date(newZonePromoEndAt);
+        if (!isNaN(d.getTime())) promoEndIso = d.toISOString();
+      }
+
       const res = await addZoneAction(
         fn.id,
         newZoneName.trim(),
@@ -398,7 +410,10 @@ export default function MapEditorPage() {
         newZoneMinorPresalePrice,
         newZonePromoPkgQty,
         newZonePromoPkgPrice,
-        newZonePromoPkgName.trim() || null
+        newZonePromoPkgName.trim() || null,
+        newZoneIsPromoActive,
+        newZonePromoSinglePrice,
+        promoEndIso
       );
       setSaving(null);
       if (res.success && res.zone) {
@@ -416,9 +431,12 @@ export default function MapEditorPage() {
         setNewZoneSaleType("individual");
         setNewZoneIsLocked(false);
         setNewZoneHasSeats(true);
+        setNewZoneIsPromoActive(false);
+        setNewZonePromoSinglePrice(null);
         setNewZonePromoPkgQty(null);
         setNewZonePromoPkgPrice(null);
         setNewZonePromoPkgName("");
+        setNewZonePromoEndAt("");
       } else {
         alert("Error al crear zona: " + (res.error ?? "Desconocido"));
         showToast("Error: " + (res.error ?? "Desconocido"));
@@ -454,6 +472,9 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
     setEditZonePromoPkgQty(z.promo_package_qty ?? null);
     setEditZonePromoPkgPrice(z.promo_package_price ?? null);
     setEditZonePromoPkgName(z.promo_package_name ?? "");
+    setEditZoneIsPromoActive(z.is_promo_active ?? false);
+    setEditZonePromoSinglePrice(z.promo_single_price ?? null);
+    setEditZonePromoEndAt(toLocalDatetimeInputString(z.promo_end_at));
   }
 
   async function handleToggleLock(z: Zone) {
@@ -478,6 +499,12 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
         if (!isNaN(d.getTime())) editPresaleEndIso = d.toISOString();
       }
 
+      let editPromoEndIso: string | null = null;
+      if (editZonePromoEndAt && editZonePromoEndAt.trim() !== "") {
+        const d = new Date(editZonePromoEndAt);
+        if (!isNaN(d.getTime())) editPromoEndIso = d.toISOString();
+      }
+
       const res = await updateZoneAction(editDetailsModal.id, {
         name: editZoneName.trim(),
         price: editZonePrice,
@@ -490,9 +517,12 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
         color: editZoneColor,
         is_locked: editZoneIsLocked,
         has_seats: editZoneHasSeats,
+        is_promo_active: editZoneIsPromoActive,
+        promo_single_price: editZonePromoSinglePrice,
         promo_package_qty: editZonePromoPkgQty,
         promo_package_price: editZonePromoPkgPrice,
         promo_package_name: editZonePromoPkgName.trim() || null,
+        promo_end_at: editPromoEndIso,
       });
       setSaving(null);
       if (res.success && res.zone) {
@@ -841,49 +871,92 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
               )}
 
               {/* Promoción por Paquete / Combo (ej: 2 por $170.000) */}
-              <div className="pt-2.5 border-t border-purple-500/30">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">🔥 Promoción por Combo / Paquete</span>
-                  <span className="text-[10px] text-muted">Opcional</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label text-[11px]">Cantidad de Boletas</label>
+              <div className="pt-2.5 border-t border-purple-500/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">🔥 Promoción de Boletas</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-white">
                     <input
-                      type="number"
-                      min={2}
-                      className="input"
-                      value={newZonePromoPkgQty ?? ""}
-                      onChange={(e) => setNewZonePromoPkgQty(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="Ej: 2"
+                      type="checkbox"
+                      checked={newZoneIsPromoActive}
+                      onChange={(e) => setNewZoneIsPromoActive(e.target.checked)}
+                      className="rounded border-border text-purple-600 focus:ring-purple-500 h-4 w-4"
                     />
-                  </div>
-                  <div>
-                    <label className="label text-[11px]">Precio Total Combo ($)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className="input"
-                      value={newZonePromoPkgPrice ?? ""}
-                      onChange={(e) => setNewZonePromoPkgPrice(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="Ej: 170000"
-                    />
-                  </div>
+                    <span>{newZoneIsPromoActive ? "Promo Activada ✅" : "Activar Promo"}</span>
+                  </label>
                 </div>
-                <div className="mt-2">
-                  <label className="label text-[11px]">Nombre o Etiqueta de la Promo</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={newZonePromoPkgName}
-                    onChange={(e) => setNewZonePromoPkgName(e.target.value)}
-                    placeholder="Ej: Combo Pareja 2x1 / Paquete Amigos"
-                  />
-                </div>
-                {newZonePromoPkgQty && newZonePromoPkgPrice && newZonePrice > 0 && (
-                  <p className="text-[10px] text-emerald-400 mt-1 font-semibold">
-                    💡 Precio normal de {newZonePromoPkgQty} boletas: ${(newZonePrice * newZonePromoPkgQty).toLocaleString("es-CO")} → Ahorro cliente: ${Math.max(0, (newZonePrice * newZonePromoPkgQty) - newZonePromoPkgPrice).toLocaleString("es-CO")}
-                  </p>
+
+                {newZoneIsPromoActive && (
+                  <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                    {/* Precio individual promocional */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="label text-[11px]">Precio 1 Boleta en Promo ($)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="input"
+                          value={newZonePromoSinglePrice ?? ""}
+                          onChange={(e) => setNewZonePromoSinglePrice(e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Opcional (Ej: 90000)"
+                        />
+                        <span className="text-[10px] text-muted">Deja vacío para usar el precio regular</span>
+                      </div>
+                      <div>
+                        <label className="label text-[11px]">Límite Fin de la Promo</label>
+                        <input
+                          type="datetime-local"
+                          className="input text-xs"
+                          value={newZonePromoEndAt}
+                          onChange={(e) => setNewZonePromoEndAt(e.target.value)}
+                        />
+                        <span className="text-[10px] text-muted">Fecha y hora de expiración</span>
+                      </div>
+                    </div>
+
+                    {/* Configuración del Paquete / Combo */}
+                    <div className="pt-2 border-t border-white/10">
+                      <p className="text-[11px] font-bold text-amber-300 mb-2">🎁 Oferta por Combo / Paquete (Opcional):</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label text-[11px]">Cantidad de Boletas</label>
+                          <input
+                            type="number"
+                            min={2}
+                            className="input"
+                            value={newZonePromoPkgQty ?? ""}
+                            onChange={(e) => setNewZonePromoPkgQty(e.target.value ? Number(e.target.value) : null)}
+                            placeholder="Ej: 2"
+                          />
+                        </div>
+                        <div>
+                          <label className="label text-[11px]">Precio Total Combo ($)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            className="input"
+                            value={newZonePromoPkgPrice ?? ""}
+                            onChange={(e) => setNewZonePromoPkgPrice(e.target.value ? Number(e.target.value) : null)}
+                            placeholder="Ej: 170000"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <label className="label text-[11px]">Nombre o Etiqueta de la Promo</label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={newZonePromoPkgName}
+                          onChange={(e) => setNewZonePromoPkgName(e.target.value)}
+                          placeholder="Ej: Combo Pareja 2x1 / Paquete Amigos"
+                        />
+                      </div>
+                      {newZonePromoPkgQty && newZonePromoPkgPrice && newZonePrice > 0 && (
+                        <p className="text-[10px] text-emerald-400 mt-2 font-semibold">
+                          💡 Precio normal de {newZonePromoPkgQty} boletas: ${(newZonePrice * newZonePromoPkgQty).toLocaleString("es-CO")} → Ahorro cliente: ${Math.max(0, (newZonePrice * newZonePromoPkgQty) - newZonePromoPkgPrice).toLocaleString("es-CO")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -1121,49 +1194,92 @@ function toLocalDatetimeInputString(dateStrOrObj: string | Date | null | undefin
               </div>
 
               {/* Promoción por Paquete / Combo (ej: 2 por $170.000) */}
-              <div className="pt-2.5 border-t border-purple-500/30">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">🔥 Promoción por Combo / Paquete</span>
-                  <span className="text-[10px] text-muted">Opcional</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label text-[11px]">Cantidad de Boletas</label>
+              <div className="pt-2.5 border-t border-purple-500/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">🔥 Promoción de Boletas</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-white">
                     <input
-                      type="number"
-                      min={2}
-                      className="input"
-                      value={editZonePromoPkgQty ?? ""}
-                      onChange={(e) => setEditZonePromoPkgQty(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="Ej: 2"
+                      type="checkbox"
+                      checked={editZoneIsPromoActive}
+                      onChange={(e) => setEditZoneIsPromoActive(e.target.checked)}
+                      className="rounded border-border text-purple-600 focus:ring-purple-500 h-4 w-4"
                     />
-                  </div>
-                  <div>
-                    <label className="label text-[11px]">Precio Total Combo ($)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      className="input"
-                      value={editZonePromoPkgPrice ?? ""}
-                      onChange={(e) => setEditZonePromoPkgPrice(e.target.value ? Number(e.target.value) : null)}
-                      placeholder="Ej: 170000"
-                    />
-                  </div>
+                    <span>{editZoneIsPromoActive ? "Promo Activada ✅" : "Activar Promo"}</span>
+                  </label>
                 </div>
-                <div className="mt-2">
-                  <label className="label text-[11px]">Nombre o Etiqueta de la Promo</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={editZonePromoPkgName}
-                    onChange={(e) => setEditZonePromoPkgName(e.target.value)}
-                    placeholder="Ej: Combo Pareja 2x1 / Paquete Amigos"
-                  />
-                </div>
-                {editZonePromoPkgQty && editZonePromoPkgPrice && editZonePrice > 0 && (
-                  <p className="text-[10px] text-emerald-400 mt-1 font-semibold">
-                    💡 Precio normal de {editZonePromoPkgQty} boletas: ${(editZonePrice * editZonePromoPkgQty).toLocaleString("es-CO")} → Ahorro cliente: ${Math.max(0, (editZonePrice * editZonePromoPkgQty) - editZonePromoPkgPrice).toLocaleString("es-CO")}
-                  </p>
+
+                {editZoneIsPromoActive && (
+                  <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                    {/* Precio individual promocional */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="label text-[11px]">Precio 1 Boleta en Promo ($)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="input"
+                          value={editZonePromoSinglePrice ?? ""}
+                          onChange={(e) => setEditZonePromoSinglePrice(e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Opcional (Ej: 90000)"
+                        />
+                        <span className="text-[10px] text-muted">Deja vacío para usar precio regular</span>
+                      </div>
+                      <div>
+                        <label className="label text-[11px]">Límite Fin de la Promo</label>
+                        <input
+                          type="datetime-local"
+                          className="input text-xs"
+                          value={editZonePromoEndAt}
+                          onChange={(e) => setEditZonePromoEndAt(e.target.value)}
+                        />
+                        <span className="text-[10px] text-muted">Fecha y hora de expiración</span>
+                      </div>
+                    </div>
+
+                    {/* Configuración del Paquete / Combo */}
+                    <div className="pt-2 border-t border-white/10">
+                      <p className="text-[11px] font-bold text-amber-300 mb-2">🎁 Oferta por Combo / Paquete (Opcional):</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label text-[11px]">Cantidad de Boletas</label>
+                          <input
+                            type="number"
+                            min={2}
+                            className="input"
+                            value={editZonePromoPkgQty ?? ""}
+                            onChange={(e) => setEditZonePromoPkgQty(e.target.value ? Number(e.target.value) : null)}
+                            placeholder="Ej: 2"
+                          />
+                        </div>
+                        <div>
+                          <label className="label text-[11px]">Precio Total Combo ($)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            className="input"
+                            value={editZonePromoPkgPrice ?? ""}
+                            onChange={(e) => setEditZonePromoPkgPrice(e.target.value ? Number(e.target.value) : null)}
+                            placeholder="Ej: 170000"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <label className="label text-[11px]">Nombre o Etiqueta de la Promo</label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={editZonePromoPkgName}
+                          onChange={(e) => setEditZonePromoPkgName(e.target.value)}
+                          placeholder="Ej: Combo Pareja 2x1 / Paquete Amigos"
+                        />
+                      </div>
+                      {editZonePromoPkgQty && editZonePromoPkgPrice && editZonePrice > 0 && (
+                        <p className="text-[10px] text-emerald-400 mt-2 font-semibold">
+                          💡 Precio normal de {editZonePromoPkgQty} boletas: ${(editZonePrice * editZonePromoPkgQty).toLocaleString("es-CO")} → Ahorro cliente: ${Math.max(0, (editZonePrice * editZonePromoPkgQty) - editZonePromoPkgPrice).toLocaleString("es-CO")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -1238,9 +1354,9 @@ function ZoneRow({
             PREVENTA
           </span>
         )}
-        {zone.promo_package_qty && zone.promo_package_price && (
+        {zone.is_promo_active && (
           <span className="rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold uppercase shrink-0">
-            🔥 {zone.promo_package_name || `COMBO x${zone.promo_package_qty}`}
+            🔥 {zone.promo_package_name || (zone.promo_package_qty ? `COMBO x${zone.promo_package_qty}` : "PROMO ACTIVA")}
           </span>
         )}
         {zone.map_coords ? (
