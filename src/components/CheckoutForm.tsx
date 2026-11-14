@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatCOP } from '@/lib/format';
 import type { EventFunction, Zone, Seat } from "@/lib/types";
 import { getZonePricing, getZoneMinorPrice, getZonePackagePromo } from "@/lib/pricing";
+import { createOrder } from "@/app/actions";
 
 type PaymentMethod = {
   id: string;
@@ -140,7 +141,6 @@ export default function CheckoutForm({
     formData.append("minorQuantity", minorQuantity.toString());
 
     try {
-      const { createOrder } = await import("../app/actions");
       const result = await createOrder(formData);
 
       if (result.success) {

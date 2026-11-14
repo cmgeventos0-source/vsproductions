@@ -180,13 +180,14 @@ export async function createOrder(formData: FormData) {
   if (receiptFile && receiptFile.size > 0) {
     const fileExt = receiptFile.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const { error: uploadError } = await supabase.storage
+    const storageClient = createAdminClient();
+    const { error: uploadError } = await storageClient.storage
       .from("receipts")
       .upload(fileName, receiptFile);
 
     if (uploadError) throw new Error(`Error subiendo el comprobante: ${uploadError.message}`);
 
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = storageClient.storage
       .from("receipts")
       .getPublicUrl(fileName);
     receiptUrl = publicUrl;
