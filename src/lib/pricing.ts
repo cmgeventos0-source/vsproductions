@@ -91,7 +91,7 @@ export function getZonePackagePromo(zone?: Partial<Zone> | null): ZonePackagePro
     };
   }
 
-  const isExplicitlyActive = zone.is_promo_active ?? true;
+  const isExplicitlyActive = zone.is_promo_active ?? false;
   const promoEndAt = zone.promo_end_at ?? null;
 
   let isExpired = false;

@@ -484,7 +484,19 @@ export default function PurchasePanel({
                   {hasAssignedSeats ? `${selectedSeats.size} silla(s)` : `${qty} boleta(s)`}
                 </span>
                 <span className="font-black text-white">
-                  {activeZone ? formatCOP(getZonePricing(activeZone).currentPrice * (hasAssignedSeats ? (selectedSeats.size || 1) : qty)) : ""}
+                  {activeZone ? (() => {
+                    const promo = getZonePackagePromo(activeZone);
+                    const standardPrice = getZonePricing(activeZone).currentPrice;
+                    if (hasAssignedSeats) {
+                      return formatCOP(standardPrice * (selectedSeats.size || 1));
+                    }
+                    if (promo.hasPromo && promo.packageQty >= 2 && promo.packagePrice > 0) {
+                      const packages = Math.floor(qty / promo.packageQty);
+                      const remainder = qty % promo.packageQty;
+                      return formatCOP((packages * promo.packagePrice) + (remainder * standardPrice));
+                    }
+                    return formatCOP(standardPrice * qty);
+                  })() : ""}
                 </span>
               </div>
               <div className="flex gap-2">
