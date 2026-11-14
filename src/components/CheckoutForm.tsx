@@ -141,7 +141,16 @@ export default function CheckoutForm({
     formData.append("minorQuantity", minorQuantity.toString());
 
     try {
-      const result = await createOrder(formData);
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Ocurrió un error al procesar el pedido.");
+      }
 
       if (result.success) {
         if (selectedMethod === "wompi") {
