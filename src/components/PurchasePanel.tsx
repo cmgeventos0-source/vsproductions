@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Event, Seat, Zone } from "@/lib/types";
-import { formatCOP, formatDateTime, formatDate, formatTime } from "@/lib/format";
+import { formatCOP, formatDateTime, formatDate, formatTime, formatPromoEnd } from "@/lib/format";
 import { getZonePricing, getZoneMinorPrice, getZoneMinorPricing, getZonePackagePromo } from "@/lib/pricing";
 import { addToCart } from "@/app/actions";
 import { SafeDateRender } from "@/components/SafeDateRender";
@@ -778,7 +778,9 @@ export default function PurchasePanel({
                 )}
                 {promo.promoEndAt && (
                   <p className="text-[10px] text-red-300 font-semibold pt-0.5">
-                    ⏰ Finaliza: {new Date(promo.promoEndAt).toLocaleDateString("es-CO", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    <SafeDateRender>
+                      <span>⏰ Finaliza: {formatPromoEnd(promo.promoEndAt)}</span>
+                    </SafeDateRender>
                   </p>
                 )}
               </div>

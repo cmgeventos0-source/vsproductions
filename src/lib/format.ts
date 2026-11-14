@@ -51,3 +51,14 @@ export function formatDateShort(iso: string): string {
     timeZone: "America/Bogota",
   }).format(new Date(iso));
 }
+
+export function formatPromoEnd(iso: string): string {
+  return new Intl.DateTimeFormat("es-CO", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/Bogota",
+  }).format(new Date(iso));
+}

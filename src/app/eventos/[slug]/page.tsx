@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import PurchasePanel from "../../../components/PurchasePanel";
 import type { Event, Seat } from "@/lib/types";
+import { formatPromoEnd } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -194,7 +195,7 @@ export default async function EventoDetailPage({
                       </span>
                       {firstPromo.promo_end_at && (
                         <span className="text-[10px] text-red-300 font-semibold bg-red-500/20 px-2 py-0.5 rounded-full">
-                          ⏰ Finaliza: {new Date(firstPromo.promo_end_at).toLocaleDateString("es-CO", { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          ⏰ Finaliza: {formatPromoEnd(firstPromo.promo_end_at)}
                         </span>
                       )}
                     </div>
