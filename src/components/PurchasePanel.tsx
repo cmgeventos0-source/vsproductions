@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Event, Seat, Zone } from "@/lib/types";
 import { formatCOP, formatDateTime, formatDate, formatTime } from "@/lib/format";
-import { getZonePricing, getZoneMinorPrice, getZoneMinorPricing } from "@/lib/pricing";
+import { getZonePricing, getZoneMinorPrice, getZoneMinorPricing, getZonePackagePromo } from "@/lib/pricing";
 import { addToCart } from "@/app/actions";
 import { SafeDateRender } from "@/components/SafeDateRender";
 
@@ -592,6 +592,14 @@ export default function PurchasePanel({
                           {pricing.isPresale && (
                             <span className="rounded bg-pink-600/90 px-1.5 py-0.5 text-[9px] font-black uppercase text-white tracking-wider">PREVENTA</span>
                           )}
+                          {(() => {
+                            const promo = getZonePackagePromo(z);
+                            return promo.hasPromo ? (
+                              <span className="rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                                🔥 {promo.packageName}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                         <p className="text-xs text-muted truncate mt-0.5">
                           {isLocked ? <span className="text-amber-400 font-semibold">🔒 Bloqueada por organizador</span> : z.sale_type === "full_zone"
@@ -731,6 +739,47 @@ export default function PurchasePanel({
           </div>
         )}
 
+        {/* Promo Paquete / Combo Notice y Selector rápido */}
+        {activeZone && (() => {
+          const promo = getZonePackagePromo(activeZone);
+          if (!promo.hasPromo) return null;
+          return (
+            <div className="mx-4 my-2.5 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-purple-500/10 to-amber-500/10 p-3 shadow-md">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">🔥</span>
+                  <span className="text-xs font-bold text-amber-300 uppercase tracking-wide">
+                    {promo.packageName}
+                  </span>
+                </div>
+                <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  Ahorras {formatCOP(promo.savings)}
+                </span>
+              </div>
+              <p className="text-[11px] text-white/90 mt-1">
+                Lleva <strong>{promo.packageQty} boletas</strong> por solo{" "}
+                <strong className="text-amber-300">{formatCOP(promo.packagePrice)}</strong>{" "}
+                <span className="text-muted line-through text-[10px]">({formatCOP(promo.regularPriceForQty)})</span>
+              </p>
+              {event.sale_mode === "general" && (
+                <button
+                  type="button"
+                  onClick={() => setQty(promo.packageQty)}
+                  className={`mt-2 w-full rounded-xl py-1.5 px-3 text-xs font-black transition-all ${
+                    qty === promo.packageQty
+                      ? "bg-amber-400 text-black shadow-md shadow-amber-950/30"
+                      : "bg-surface-2 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                  }`}
+                >
+                  {qty === promo.packageQty
+                    ? `✓ Combo x${promo.packageQty} seleccionado (${formatCOP(promo.packagePrice)})`
+                    : `Aplicar Combo x${promo.packageQty} por ${formatCOP(promo.packagePrice)}`}
+                </button>
+              )}
+            </div>
+          );
+        })()}
+
         {/* CTA — always visible */}
         <div className="px-4 py-4">
           {cartAddedMessage && (
@@ -749,13 +798,33 @@ export default function PurchasePanel({
                   : `${qty} boleta(s) · ${activeZone?.name ?? "Sin zona"}`}
               </p>
               {activeZone ? (
-                <p className="text-xl font-black text-white mt-0.5 leading-none">
-                  {event.allows_minors
-                    ? formatCOP((getZonePricing(activeZone).currentPrice * qty) + (getZoneMinorPrice(activeZone) * minorQty))
-                    : event.sale_mode === "general"
-                    ? formatCOP(getZonePricing(activeZone).currentPrice * qty)
-                    : formatCOP(getZonePricing(activeZone).currentPrice) + " / boleta"}
-                </p>
+                (() => {
+                  const promo = getZonePackagePromo(activeZone);
+                  const standardUnitPrice = getZonePricing(activeZone).currentPrice;
+                  let adultTotal = standardUnitPrice * qty;
+                  if (promo.hasPromo && promo.packageQty >= 2) {
+                    const packages = Math.floor(qty / promo.packageQty);
+                    const remainder = qty % promo.packageQty;
+                    adultTotal = (packages * promo.packagePrice) + (remainder * standardUnitPrice);
+                  }
+                  const minorTotal = event.allows_minors ? (getZoneMinorPrice(activeZone) * minorQty) : 0;
+                  const finalTotal = adultTotal + minorTotal;
+
+                  return (
+                    <div>
+                      <p className="text-xl font-black text-white mt-0.5 leading-none">
+                        {event.sale_mode === "assigned"
+                          ? formatCOP(standardUnitPrice) + " / boleta"
+                          : formatCOP(finalTotal)}
+                      </p>
+                      {promo.hasPromo && qty >= promo.packageQty && (
+                        <p className="text-[10px] text-emerald-400 font-bold mt-1">
+                          ¡Promo aplicada! Ahorro: {formatCOP((standardUnitPrice * qty) - adultTotal)}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()
               ) : (
                 <p className="text-xs text-muted mt-0.5">Selecciona una zona</p>
               )}

@@ -50,17 +50,24 @@ export async function createOrder(formData: FormData) {
   if (zoneId) {
     let { data: zData, error: zErr } = await supabase
       .from("zones")
-      .select("id, price, minor_price, minor_presale_price, presale_price, presale_end_at, capacity, sold_count, function_id")
+      .select("id, price, minor_price, minor_presale_price, presale_price, presale_end_at, promo_package_qty, promo_package_price, promo_package_name, capacity, sold_count, function_id")
       .eq("id", zoneId)
       .single();
 
-    if (zErr && (zErr.message?.includes("minor_price") || zErr.code === "PGRST204")) {
+    if (zErr && (zErr.message?.includes("promo_package") || zErr.message?.includes("minor_price") || zErr.code === "PGRST204")) {
       const fallback = await supabase
         .from("zones")
         .select("id, price, presale_price, presale_end_at, capacity, sold_count, function_id")
         .eq("id", zoneId)
         .single();
-      zData = fallback.data ? { ...fallback.data, minor_price: null, minor_presale_price: null } : null;
+      zData = fallback.data ? {
+        ...fallback.data,
+        minor_price: null,
+        minor_presale_price: null,
+        promo_package_qty: null,
+        promo_package_price: null,
+        promo_package_name: null,
+      } : null;
     }
     zone = zData;
   }
@@ -107,7 +114,18 @@ export async function createOrder(formData: FormData) {
   const adultUnitPrice = pricing.currentPrice;
   const minorUnitPrice = zone ? getZoneMinorPrice(zone) : adultUnitPrice;
   const unitPrice = adultUnitPrice;
-  const computedSubtotal = (adultUnitPrice * adultQty) + (minorUnitPrice * minorQty);
+
+  // Cálculo considerando promoción por combo/paquete (ej: 2 por $170.000)
+  let computedAdultSubtotal = adultUnitPrice * adultQty;
+  const pkgQty = Number(zone?.promo_package_qty);
+  const pkgPrice = Number(zone?.promo_package_price);
+  if (!isNaN(pkgQty) && pkgQty >= 2 && !isNaN(pkgPrice) && pkgPrice > 0 && pkgPrice < adultUnitPrice * pkgQty) {
+    const packagesCount = Math.floor(adultQty / pkgQty);
+    const remainderQty = adultQty % pkgQty;
+    computedAdultSubtotal = (packagesCount * pkgPrice) + (remainderQty * adultUnitPrice);
+  }
+
+  const computedSubtotal = computedAdultSubtotal + (minorUnitPrice * minorQty);
   const computedServiceFee = 0;
 
   if (zone && seatIds.length === 0) {
@@ -755,7 +773,10 @@ export async function addZoneAction(
   isLocked?: boolean,
   hasSeats?: boolean,
   minorPrice?: number | null,
-  minorPresalePrice?: number | null
+  minorPresalePrice?: number | null,
+  promoPackageQty?: number | null,
+  promoPackagePrice?: number | null,
+  promoPackageName?: string | null
 ) {
   await requireAdmin();
   const supabase = createAdminClient();
@@ -789,6 +810,15 @@ export async function addZoneAction(
   if (presaleEndAt) {
     payload.presale_end_at = presaleEndAt;
   }
+  if (promoPackageQty !== undefined && promoPackageQty !== null) {
+    payload.promo_package_qty = promoPackageQty;
+  }
+  if (promoPackagePrice !== undefined && promoPackagePrice !== null) {
+    payload.promo_package_price = promoPackagePrice;
+  }
+  if (promoPackageName !== undefined && promoPackageName !== null) {
+    payload.promo_package_name = promoPackageName;
+  }
 
   let { data, error } = await supabase
     .from("zones")
@@ -796,7 +826,7 @@ export async function addZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("minor_price") || error.message?.includes("minor_presale_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("promo_package") || error.message?.includes("minor_price") || error.message?.includes("minor_presale_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
     delete payload.minor_price;
     delete payload.minor_presale_price;
     delete payload.is_locked;
@@ -804,6 +834,9 @@ export async function addZoneAction(
     delete payload.presale_price;
     delete payload.presale_end_at;
     delete payload.sale_type;
+    delete payload.promo_package_qty;
+    delete payload.promo_package_price;
+    delete payload.promo_package_name;
     const retry = await supabase.from("zones").insert(payload).select().single();
     data = retry.data;
     error = retry.error;
@@ -827,6 +860,9 @@ export async function updateZoneAction(
     color?: string;
     is_locked?: boolean;
     has_seats?: boolean;
+    promo_package_qty?: number | null;
+    promo_package_price?: number | null;
+    promo_package_name?: string | null;
   }
 ) {
   await requireAdmin();
@@ -844,6 +880,9 @@ export async function updateZoneAction(
   if (data.color !== undefined) updateData.color = data.color;
   if (data.is_locked !== undefined) updateData.is_locked = data.is_locked;
   if (data.has_seats !== undefined) updateData.has_seats = data.has_seats;
+  if (data.promo_package_qty !== undefined) updateData.promo_package_qty = data.promo_package_qty;
+  if (data.promo_package_price !== undefined) updateData.promo_package_price = data.promo_package_price;
+  if (data.promo_package_name !== undefined) updateData.promo_package_name = data.promo_package_name;
 
   let { data: updated, error } = await supabase
     .from("zones")
@@ -852,7 +891,7 @@ export async function updateZoneAction(
     .select()
     .single();
 
-  if (error && (error.message?.includes("minor_price") || error.message?.includes("minor_presale_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
+  if (error && (error.message?.includes("promo_package") || error.message?.includes("minor_price") || error.message?.includes("minor_presale_price") || error.message?.includes("is_locked") || error.message?.includes("has_seats") || error.message?.includes("presale_price") || error.code === "PGRST204")) {
     delete updateData.minor_price;
     delete updateData.minor_presale_price;
     delete updateData.is_locked;
@@ -860,6 +899,9 @@ export async function updateZoneAction(
     delete updateData.presale_price;
     delete updateData.presale_end_at;
     delete updateData.sale_type;
+    delete updateData.promo_package_qty;
+    delete updateData.promo_package_price;
+    delete updateData.promo_package_name;
     const retry = await supabase.from("zones").update(updateData).eq("id", zoneId).select().single();
     updated = retry.data;
     error = retry.error;

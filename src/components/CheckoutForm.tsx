@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatCOP } from '@/lib/format';
 import type { EventFunction, Zone, Seat } from "@/lib/types";
-import { getZonePricing, getZoneMinorPrice } from "@/lib/pricing";
+import { getZonePricing, getZoneMinorPrice, getZonePackagePromo } from "@/lib/pricing";
 
 type PaymentMethod = {
   id: string;
@@ -81,10 +81,22 @@ export default function CheckoutForm({
   const zonePricing = zone ? getZonePricing(zone) : { currentPrice: 0, fullPrice: 0 };
   const adultUnitPrice = zonePricing.currentPrice;
   const minorUnitPrice = zone ? getZoneMinorPrice(zone) : adultUnitPrice;
+  const packagePromo = zone ? getZonePackagePromo(zone) : null;
 
-  const adultSubtotal = isAssigned
+  let computedAdultSubtotal = isAssigned
     ? seats.reduce((acc, s) => acc + adultUnitPrice, 0)
     : adultUnitPrice * adultQuantity;
+
+  let promoSavings = 0;
+  if (!isAssigned && packagePromo && packagePromo.hasPromo && packagePromo.packageQty >= 2) {
+    const packages = Math.floor(adultQuantity / packagePromo.packageQty);
+    const remainder = adultQuantity % packagePromo.packageQty;
+    const discountedTotal = (packages * packagePromo.packagePrice) + (remainder * adultUnitPrice);
+    promoSavings = (adultUnitPrice * adultQuantity) - discountedTotal;
+    computedAdultSubtotal = discountedTotal;
+  }
+
+  const adultSubtotal = computedAdultSubtotal;
   const minorSubtotal = minorUnitPrice * minorQuantity;
   const subtotal = adultSubtotal + minorSubtotal;
 
@@ -479,6 +491,14 @@ export default function CheckoutForm({
                   <span className="text-white">{formatCOP(subtotal)}</span>
                 </div>
               </>
+            )}
+            {promoSavings > 0 && (
+              <div className="flex justify-between items-center rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5 text-xs text-amber-300">
+                <span className="font-bold flex items-center gap-1">
+                  🔥 {packagePromo?.packageName || "Descuento Combo"}:
+                </span>
+                <span className="font-black text-emerald-400">-{formatCOP(promoSavings)}</span>
+              </div>
             )}
             {serviceFee > 0 && (
               <div className="flex justify-between">

@@ -40,6 +40,55 @@ export function getZonePricing(zone: Partial<Zone> & { price: number }): ZonePri
   };
 }
 
+export type ZonePackagePromoInfo = {
+  hasPromo: boolean;
+  packageQty: number;
+  packagePrice: number;
+  packageName: string;
+  regularPriceForQty: number;
+  savings: number;
+  unitPriceEquivalent: number;
+};
+
+export function getZonePackagePromo(zone?: Partial<Zone> | null): ZonePackagePromoInfo {
+  if (!zone) {
+    return {
+      hasPromo: false,
+      packageQty: 0,
+      packagePrice: 0,
+      packageName: "",
+      regularPriceForQty: 0,
+      savings: 0,
+      unitPriceEquivalent: 0,
+    };
+  }
+
+  const pkgQty = Number(zone.promo_package_qty);
+  const pkgPrice = Number(zone.promo_package_price);
+  const standardPricing = getZonePricing(zone as any);
+  const regularPriceForQty = standardPricing.currentPrice * (pkgQty || 1);
+
+  const hasPromo =
+    !isNaN(pkgQty) &&
+    pkgQty >= 2 &&
+    !isNaN(pkgPrice) &&
+    pkgPrice > 0 &&
+    pkgPrice < regularPriceForQty;
+
+  const savings = hasPromo ? Math.max(0, regularPriceForQty - pkgPrice) : 0;
+  const unitPriceEquivalent = hasPromo ? Math.round(pkgPrice / pkgQty) : standardPricing.currentPrice;
+
+  return {
+    hasPromo,
+    packageQty: hasPromo ? pkgQty : 0,
+    packagePrice: hasPromo ? pkgPrice : 0,
+    packageName: (zone.promo_package_name && zone.promo_package_name.trim()) || `Combo x${pkgQty}`,
+    regularPriceForQty,
+    savings,
+    unitPriceEquivalent,
+  };
+}
+
 export type ZoneMinorPricingInfo = {
   currentPrice: number;
   fullPrice: number;
